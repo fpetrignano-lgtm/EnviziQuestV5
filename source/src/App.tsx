@@ -1361,7 +1361,7 @@ export default function Home(){
                         <small>{isIt?`${completed}/6 missioni`:`${completed}/6 missions`}</small>
                       </div>
                       <div className="welcomeSavedActions">
-                        <button className="welcomeLoadBtn" onClick={()=>{loadQuest(key);setScreenState("chapterMap");}}>{isIt?"Riprendi →":"Resume →"}</button>
+                        <button className="welcomeLoadBtn" onClick={()=>{loadQuest(key);}}>{isIt?"Riprendi →":"Resume →"}</button>
                         <button className="welcomeDownloadBtn" title={isIt?"Salva come file .envizi-quest (controlla la cartella Download del browser)":"Save as .envizi-quest file (check your browser Downloads folder)"} onClick={()=>downloadQuest(key)}>⬇</button>
                         <button className="welcomeDeleteBtn" onClick={()=>{deleteQuest(key);setScreenState("cover");setTimeout(()=>setScreenState("welcome"),10);}}>✕</button>
                       </div>
@@ -1393,7 +1393,7 @@ export default function Home(){
                         <small>{u?`${u} · `:""}{isIt?`${completed}/6 missioni`:`${completed}/6 missions`}</small>
                       </div>
                       <div className="welcomeSavedActions">
-                        <button className="welcomeLoadBtn" onClick={()=>{loadQuest(key);setScreenState("chapterMap");}}>{isIt?"Riprendi →":"Resume →"}</button>
+                        <button className="welcomeLoadBtn" onClick={()=>{loadQuest(key);}}>{isIt?"Riprendi →":"Resume →"}</button>
                         <button className="welcomeDeleteBtn" onClick={()=>{deleteQuest(key);setScreenState("cover");setTimeout(()=>setScreenState("welcome"),10);}}>✕</button>
                       </div>
                     </li>;
