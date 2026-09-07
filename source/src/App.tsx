@@ -1276,7 +1276,7 @@ export default function Home(){
         </div>
       </div>}
       <div className="welcomeBlueBar"/>
-      <span style={{position:"fixed",bottom:"20px",right:"24px",fontSize:"22px",fontWeight:700,letterSpacing:".18em",color:"rgba(57,239,180,.75)",fontFamily:"var(--font-geist-mono,monospace)",pointerEvents:"none",zIndex:9999}}>V2</span>
+      <span style={{position:"fixed",bottom:"20px",right:"24px",fontSize:"22px",fontWeight:700,letterSpacing:".18em",color:"rgba(57,239,180,.75)",fontFamily:"var(--font-geist-mono,monospace)",pointerEvents:"none",zIndex:9999}}>V5</span>
       <img src="./welcome-gen.png" alt="" className="welcomeBg" aria-hidden="true"/>
       <div className="welcomeBgOverlay"/>
       <header className="missionNav" style={{position:"relative",zIndex:3}}>
