@@ -70,6 +70,14 @@ export function MissionCardScreen({
     </table>
   );
 
+  const hasNeeds = needs.length > 0;
+
+  const goToBriefing = () => {
+    setSelectedMission(missionIndex);
+    localStorage.setItem("envizi-quest-mission", String(missionIndex + 1));
+    setScreen("briefing");
+  };
+
   return(
     <main className="missionMenuScreen">
       <header className="missionNav missionNavTrust" style={{position:"fixed",top:0,left:0,right:0}}>
@@ -84,12 +92,36 @@ export function MissionCardScreen({
             <div className="missionCardTop"><span>{String(cardNum).padStart(2,"0")}</span><i>{m.icon}</i></div>
             <h2>{isIt?m.it:m.en}</h2>
           </div>
-          <div className="missionCardNeedsBox">{needs.length>0?renderNeedsTable(needs):<span className="missionCardNeed">—</span>}</div>
+          <div className="missionCardNeedsBox">
+            {hasNeeds
+              ? renderNeedsTable(needs)
+              : <div style={{padding:"24px 16px",textAlign:"center"}}>
+                  <p style={{fontSize:"28px",color:"rgba(57,239,180,.6)",marginBottom:"8px"}}>◎</p>
+                  <p style={{fontSize:"28px",color:"#b5c9c1",lineHeight:1.5,margin:"0 0 6px"}}>
+                    {isIt
+                      ? "Nessuna esigenza prioritaria associata a questa sfida."
+                      : "No priority needs linked to this challenge."}
+                  </p>
+                  <p style={{fontSize:"24px",color:"rgba(181,201,193,.6)",lineHeight:1.4,margin:0}}>
+                    {isIt
+                      ? "Puoi comunque svolgere la missione per esplorarne i contenuti, oppure saltarla e tornare al percorso."
+                      : "You can still run the mission to explore its content, or skip it and return to the journey."}
+                  </p>
+                </div>
+            }
+          </div>
         </article>
       </section>
       <div style={{position:"fixed",bottom:"32px",left:0,right:0,display:"flex",justifyContent:"center",gap:"12px"}}>
         <button className="secondaryAction" onClick={()=>setScreen(backScreen)}>← {isIt?"Indietro":"Back"}</button>
-        <button className="actionButton" style={{width:"auto",marginTop:0,padding:"12px 24px"}} onClick={()=>{setSelectedMission(missionIndex);localStorage.setItem("envizi-quest-mission",String(missionIndex+1));setScreen("briefing");}}>{isIt?"Avanti →":"Next →"}</button>
+        {!hasNeeds&&(
+          <button className="secondaryAction" style={{borderColor:"rgba(57,239,180,.3)",color:"rgba(57,239,180,.6)"}} onClick={()=>setScreen(backScreen)}>
+            {isIt?"Salta ⤳":"Skip ⤳"}
+          </button>
+        )}
+        <button className="actionButton" style={{width:"auto",marginTop:0,padding:"12px 24px"}} onClick={goToBriefing}>
+          {isIt?"Svolgi la missione →":"Run the mission →"}
+        </button>
       </div>
     </main>
   );
