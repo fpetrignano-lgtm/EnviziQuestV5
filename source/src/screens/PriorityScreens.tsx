@@ -1,0 +1,1399 @@
+import React, { useState, useEffect, useCallback } from "react";
+import type { Priority } from "../types";
+import type { CommonProps, NeedItem } from "./types";
+import { missionCatalog, USE_CASE_SCENARIOS } from "../constants";
+
+type NeedsByMission = [number, (NeedItem & { rank: number })[]][];
+
+// ── approachDataCopy ─────────────────────────────────────────────────────────
+
+interface ApproachDataCopyProps extends CommonProps {
+  t: Record<string, any>;
+  onContinue?: () => void;
+}
+
+export function ApproachDataCopyScreen({ language, setLanguage, setScreen, reset, t, onContinue }: ApproachDataCopyProps) {
+  const isIt = language === "it";
+  const [zoomWarnOpen,setZoomWarnOpen]=React.useState(false);
+  React.useEffect(()=>{
+    const handler=(e:KeyboardEvent)=>{
+      const mod=e.metaKey||e.ctrlKey;
+      if(!mod)return;
+      if(e.key==="+"||e.key==="="||e.key==="-"||e.key==="0"){e.preventDefault();setZoomWarnOpen(true);}
+    };
+    window.addEventListener("keydown",handler);
+    return ()=>window.removeEventListener("keydown",handler);
+  },[]);
+  return <main className="approachIntroScreen" style={{position:"relative"}}>
+    {zoomWarnOpen&&<div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(7,18,15,.82)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setZoomWarnOpen(false)}><div style={{background:"#0d1f19",border:"1px solid rgba(57,239,180,.3)",borderRadius:"14px",padding:"28px 32px",maxWidth:"380px",width:"90vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}><p style={{margin:"0 0 8px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".14em",textTransform:"uppercase",color:"#39efb4"}}>{isIt?"Attenzione":"Warning"}</p><p style={{margin:"0 0 20px",fontSize:"15px",color:"#e8f5ef",lineHeight:1.5}}>{isIt?"Il rapporto di visualizzazione è ottimizzato per questa schermata. Sei sicuro di voler cambiare lo zoom?":"The display ratio is optimised for this screen. Are you sure you want to change the zoom?"}</p><div style={{display:"flex",gap:"10px",justifyContent:"center"}}><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid rgba(57,239,180,.35)",background:"transparent",color:"#39efb4",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Annulla":"Cancel"}</button><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid #c84040",background:"rgba(200,64,64,.12)",color:"#ff8080",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Continua comunque":"Continue anyway"}</button></div></div></div>}
+    <div style={{position:"fixed",top:0,left:0,right:0,height:"4px",background:"#3b82f4",zIndex:9999,pointerEvents:"none"}}/>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,height:"4px",background:"#39efb4",zIndex:9999,pointerEvents:"none"}}/>
+    <header className="missionNav"><button className="brand brandButton" onClick={reset}><span className="brandMark">e·</span><span>Envizi<br/>Impact Quest</span></button><div className="missionProgress"><span className="activeDot"/> IL PERCORSO</div><button className="langMini" onClick={()=>setLanguage(language==="it"?"en":"it")}>{language==="it"?"EN":"IT"}</button></header>
+    <section className="approachIntroBody approachIntroBodyWithImg">
+      <div className="approachIntroLeft">
+        <h1 className="approachIntroTitle">{t.approachDataTitle}</h1>
+        <div className="approachIntroText">{(t.approachDataBody as string[]).map((para,i)=><p key={i}>{para}</p>)}</div>
+        <button className="actionButton approachIntroCta" onClick={()=>onContinue ? onContinue() : setScreen("priorityData")}>{t.approachDataCta}<b>→</b></button>
+      </div>
+      <div className="approachIntroRight">
+        <img src="./step-2.svg" className="approachIntroStepBadge" alt="Step 2"/>
+        <img src="./logica-issue.png" className="approachIntroImg" alt="Criticità dati ESG"/>
+        <p className="approachIntroImgCaption approachIntroImgCaptionSm">{t.approachDataExample as string}</p>
+      </div>
+    </section>
+  </main>;
+}
+
+// ── priorities ───────────────────────────────────────────────────────────────
+
+interface PrioritiesProps extends CommonProps {
+  priorities: Priority[];
+  priorityIncluded: Record<Priority, boolean>;
+  togglePriorityIncluded: (p: Priority) => void;
+  rankPriority: (fromIdx: number, toRank: number) => void;
+  prioExperience: Record<Priority, string>;
+  setPrioExpModal: (p: Priority | null) => void;
+  prioExpModal: Priority | null;
+  prioExpMode: "scratch" | "scenario";
+  setPrioExpMode: (mode: "scratch" | "scenario") => void;
+  prioExpSelected: Record<Priority, number>;
+  setPrioExpSelected: React.Dispatch<React.SetStateAction<Record<Priority, number>>>;
+  setPrioExperience: React.Dispatch<React.SetStateAction<Record<Priority, string>>>;
+  prioDefaultExp: Record<Priority, Record<"it"|"en", [string,string,string]>>;
+  displayCompanyName: string;
+  renderTrustBar: () => JSX.Element;
+  t: Record<string, any>;
+  name: string;
+  onSave?: (name: string) => void;
+  defaultSaveName?: string;
+  skipDataCopyIntro?: boolean;
+}
+
+export function PrioritiesScreen({
+  language, profile, setLanguage, setScreen, reset, renderTrustBar,
+  priorities, priorityIncluded, togglePriorityIncluded, rankPriority,
+  prioExperience, setPrioExpModal, prioExpModal, prioExpMode, setPrioExpMode,
+  prioExpSelected, setPrioExpSelected, setPrioExperience, prioDefaultExp,
+  displayCompanyName, t, name, onSave, defaultSaveName, skipDataCopyIntro,
+}: PrioritiesProps) {
+  const isIt = language === "it";
+  const prioImg: Record<Priority, string> = {credit:"./obj-credit.png",compliance:"./obj-compliance.png",customers:"./obj-customers.png",efficiency:"./obj-efficiency.png",supply:"./obj-supply.png",reputation:"./obj-reputation.png"};
+  const [saveName, setSaveName] = React.useState(defaultSaveName || "");
+  const [saved, setSaved] = React.useState(false);
+  const [zoomWarnOpen,setZoomWarnOpen]=useState(false);
+  useEffect(()=>{
+    const handler=(e:KeyboardEvent)=>{
+      const mod=e.metaKey||e.ctrlKey;
+      if(!mod)return;
+      if(e.key==="+"||e.key==="="||e.key==="-"||e.key==="0"){e.preventDefault();setZoomWarnOpen(true);}
+    };
+    window.addEventListener("keydown",handler);
+    return ()=>window.removeEventListener("keydown",handler);
+  },[]);
+  return <main className="priorityScreen priorityScreenCards" style={{position:"relative"}}>
+    {zoomWarnOpen&&<div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(7,18,15,.82)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setZoomWarnOpen(false)}><div style={{background:"#0d1f19",border:"1px solid rgba(57,239,180,.3)",borderRadius:"14px",padding:"28px 32px",maxWidth:"380px",width:"90vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}><p style={{margin:"0 0 8px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".14em",textTransform:"uppercase",color:"#39efb4"}}>{isIt?"Attenzione":"Warning"}</p><p style={{margin:"0 0 20px",fontSize:"15px",color:"#e8f5ef",lineHeight:1.5}}>{isIt?"Il rapporto di visualizzazione è ottimizzato per questa schermata. Sei sicuro di voler cambiare lo zoom?":"The display ratio is optimised for this screen. Are you sure you want to change the zoom?"}</p><div style={{display:"flex",gap:"10px",justifyContent:"center"}}><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid rgba(57,239,180,.35)",background:"transparent",color:"#39efb4",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Annulla":"Cancel"}</button><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid #c84040",background:"rgba(200,64,64,.12)",color:"#ff8080",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Continua comunque":"Continue anyway"}</button></div></div></div>}
+    <div style={{position:"fixed",top:0,left:0,right:0,height:"4px",background:"#3b82f4",zIndex:9999,pointerEvents:"none"}}/>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,height:"4px",background:"#39efb4",zIndex:9999,pointerEvents:"none"}}/>
+    <header className="missionNav missionNavTrust">
+      <button className="brand brandButton" onClick={reset}><span className="brandMark">e·</span><span>Envizi<br/>Impact Quest</span></button>
+      <div className="missionProgress"><span className="activeDot"/> BUSINESS PRIORITIES</div>
+      {renderTrustBar()}
+      <button className="langMini" onClick={()=>setLanguage(language==="it"?"en":"it")}>{language==="it"?"EN":"IT"}</button>
+    </header>
+    <div className="prioCardsLayout">
+      <div className="prioCardsIntro">
+        <p className="eyebrow">{t.priorityKicker}</p>
+        <h1>{t.priorityTitle}</h1>
+        <p>{(t.priorityIntro as string).replace("COMPANY_NAME",displayCompanyName)}</p>
+        <div className="priorityPersona">
+          <img src={`./characters/${profile}-neutral.png`} alt={name}/>
+          <div><strong>{name}</strong><small>ESG MANAGER</small></div>
+        </div>
+      </div>
+      <div className="prioCardsArea">
+        <div className="prioCardGrid">
+          {priorities.map((p,i)=>(
+            <div key={p} className={`prioCard${i<3?" prioCardTop":""}`}>
+              <div className="prioCardRank">{String(i+1).padStart(2,"0")}</div>
+              <img className="prioCardImg" src={prioImg[p]} alt={t.priorityNames[p]}/>
+              <div className="prioCardBody">
+                <strong className="prioCardName">{t.priorityNames[p]}</strong>
+                <span className="prioCardDetail">{t.priorityDetails[p]}</span>
+                <button className="prioIncludeToggle" onClick={()=>togglePriorityIncluded(p)} aria-pressed={priorityIncluded[p]} title={isIt?"Includi in analisi":"Include in analysis"}>
+                  <span className={`prioIncludeDot${priorityIncluded[p]?" prioIncludeDotOn":""}`}/>
+                  {isIt?"Includi in analisi":"Include in analysis"}
+                </button>
+                <button className="prioExpLink" onClick={()=>setPrioExpModal(p)}>
+                  {prioExperience[p]?<span className="prioExpDot"/>:null}
+                  {isIt?"✏ Racconta la tua esperienza":"✏ Share your experience"}
+                </button>
+              </div>
+              <div className="prioCardMove">
+                <button className="prioMoveBtn" onClick={()=>rankPriority(i,i)} disabled={i===0} aria-label={t.moveUp}>▲</button>
+                <button className="prioMoveBtn" onClick={()=>rankPriority(i,i+2)} disabled={i===priorities.length-1} aria-label={t.moveDown}>▼</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {Object.values(priorityIncluded).filter(Boolean).length > 3 && (
+          <div style={{display:"flex",alignItems:"flex-start",gap:"10px",padding:"12px 16px",marginBottom:"12px",borderRadius:"10px",background:"rgba(251,191,36,.08)",border:"1px solid rgba(251,191,36,.35)",color:"#fbbf24",fontSize:"26px",lineHeight:1.5}}>
+            <span style={{fontSize:"32px",flexShrink:0,marginTop:"1px"}}>💡</span>
+            <span>{isIt?"Hai selezionato più di 3 obiettivi ESG. Per un'analisi più focalizzata ti suggeriamo di scegliere al massimo 3 priorità.":"You've selected more than 3 ESG objectives. For a more focused analysis, we suggest choosing at most 3 priorities."}</span>
+          </div>
+        )}
+        {Object.values(priorityIncluded).filter(Boolean).length === 0 && (
+          <div style={{display:"flex",alignItems:"flex-start",gap:"10px",padding:"12px 16px",marginBottom:"12px",borderRadius:"10px",background:"rgba(100,116,139,.08)",border:"1px solid rgba(100,116,139,.35)",color:"#94a3b8",fontSize:"26px",lineHeight:1.5}}>
+            <span style={{fontSize:"32px",flexShrink:0,marginTop:"1px"}}>ℹ️</span>
+            <span>{isIt?"Seleziona almeno un obiettivo ESG per procedere all'analisi.":"Select at least one ESG objective to proceed with the analysis."}</span>
+          </div>
+        )}
+        <button
+          className="actionButton prioCardsConfirmBtn"
+          disabled={Object.values(priorityIncluded).filter(Boolean).length === 0}
+          onClick={()=>{localStorage.setItem("envizi-quest-priorities",JSON.stringify(priorities));setScreen(skipDataCopyIntro?"priorityData":"approachDataCopy");}}
+        >{isIt?"Avanti":"Next"}<b>→</b></button>
+      </div>
+    </div>
+    {prioExpModal&&(()=>{
+      const p = prioExpModal;
+      const phrases = prioDefaultExp[p][language as "it"|"en"];
+      const selIdx = prioExpSelected[p];
+      const modalMode = prioExpMode;
+      const edited = prioExperience[p];
+      const scenarioValue = modalMode === "scenario" ? (selIdx >= 0 ? (edited !== "" ? edited : phrases[selIdx]) : "") : "";
+      const currentVal = modalMode === "scratch" ? edited : scenarioValue;
+      const canSave = currentVal.trim() !== "" || (modalMode === "scenario" && selIdx >= 0);
+      const selectPhrase = (idx: number) => {
+        if (selIdx === idx) { setPrioExpSelected(prev=>({...prev,[p]:-1})); setPrioExperience(prev=>({...prev,[p]:""})); }
+        else { setPrioExpSelected(prev=>({...prev,[p]:idx})); setPrioExperience(prev=>({...prev,[p]:""})); }
+      };
+      const switchMode = (mode: "scratch"|"scenario") => { setPrioExpMode(mode); setPrioExpSelected(prev=>({...prev,[p]:-1})); setPrioExperience(prev=>({...prev,[p]:""})); };
+      const exitWithout = () => { setPrioExpModal(null); setPrioExpMode("scratch"); };
+      const saveAndExit = () => { if (modalMode === "scenario" && edited === "" && selIdx >= 0) setPrioExperience(prev=>({...prev,[p]:phrases[selIdx]})); setPrioExpModal(null); setPrioExpMode("scratch"); };
+      return <div className="prioExpOverlay" onClick={exitWithout}>
+        <div className="prioExpDialog" onClick={e=>e.stopPropagation()}>
+          <div className="prioExpDialogHeader"><strong>{t.priorityNames[p]}</strong></div>
+          <div className="prioExpTabs">
+            <button className={`prioExpTab${modalMode==="scratch"?" prioExpTabActive":""}`} onClick={()=>switchMode("scratch")}>{isIt?"✍ Scrivi da zero":"✍ Write from scratch"}</button>
+            <button className={`prioExpTab${modalMode==="scenario"?" prioExpTabActive":""}`} onClick={()=>switchMode("scenario")}>{isIt?"📋 Scegli uno scenario":"📋 Choose a scenario"}</button>
+          </div>
+          {modalMode==="scratch"&&(
+            <>
+              <p className="prioExpHint">{isIt?"Descrivi liberamente il contesto o la sfida specifica di questa priorità per la tua azienda.":"Freely describe the context or specific challenge of this priority for your organisation."}</p>
+              <textarea className="prioExpTextarea" value={edited} placeholder={isIt?"Scrivi qui il tuo testo…":"Write your text here…"} onChange={e=>setPrioExperience(prev=>({...prev,[p]:e.target.value}))} rows={6} autoFocus/>
+            </>
+          )}
+          {modalMode==="scenario"&&(
+            <>
+              <p className="prioExpHint">{isIt?"Seleziona il caso in cui ti riconosci di più, poi rivedi e personalizza la frase.":"Select the case you identify with most, then review and personalise the phrase."}</p>
+              <div className="prioExpPhrases">
+                {phrases.map((phrase,idx)=>(
+                  <button key={idx} className={`prioExpPhrase${selIdx===idx?" prioExpPhraseActive":""}`} onClick={()=>selectPhrase(idx)}>
+                    <span className="prioExpPhraseNum">{String(idx+1).padStart(2,"0")}</span>
+                    <span className="prioExpPhraseText">{phrase}</span>
+                    {selIdx===idx&&<span className="prioExpPhraseCheck">✓</span>}
+                  </button>
+                ))}
+              </div>
+              <textarea className={`prioExpTextarea${selIdx<0?" prioExpTextareaEmpty":""}`} value={scenarioValue} placeholder={isIt?"Seleziona uno scenario qui sopra per iniziare…":"Select a scenario above to get started…"} onChange={e=>setPrioExperience(prev=>({...prev,[p]:e.target.value}))} disabled={selIdx<0} rows={5}/>
+            </>
+          )}
+          <div className="prioExpActions">
+            <button className="prioExpClear" onClick={exitWithout}>{isIt?"Esci senza modifiche":"Exit without saving"}</button>
+            <button className="actionButton prioExpSave" onClick={saveAndExit} disabled={!canSave}>{isIt?"Salva e esci":"Save and exit"}<b>→</b></button>
+          </div>
+        </div>
+      </div>;
+    })()}
+  </main>;
+}
+
+// ── priorityData ─────────────────────────────────────────────────────────────
+
+interface PriorityDataProps extends CommonProps {
+  priorities: Priority[];
+  priorityIncluded: Record<Priority, boolean>;
+  dataNeeds: NeedItem[];
+  needRelevance: Record<string, number>;
+  setNeedRelevance: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  needCriticality: Record<string, number>;
+  setNeedCriticality: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  needIncluded: Record<string, boolean>;
+  toggleNeedIncluded: (id: string) => void;
+  isNeedIncluded: (id: string) => boolean;
+  pdHelpOpen: boolean;
+  setPdHelpOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  needIdToMission: Record<string, number>;
+  needIdToCapability: Record<string, {it:string,en:string}>;
+  displayCompanyName: string;
+  renderTrustBar: () => JSX.Element;
+  t: Record<string, any>;
+  name: string;
+  pdCustomLabels: Record<string, string>;
+  setPdCustomLabels: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  pdCustomMemos: Record<string, string>;
+  setPdCustomMemos: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+}
+
+export function PriorityDataScreen({
+  language, profile, setLanguage, setScreen, reset, renderTrustBar,
+  priorities, priorityIncluded, dataNeeds, needRelevance, setNeedRelevance, needCriticality, setNeedCriticality,
+  needIncluded, toggleNeedIncluded, isNeedIncluded, pdHelpOpen, setPdHelpOpen,
+  needIdToMission, needIdToCapability, displayCompanyName, t, name,
+  pdCustomLabels: customLabels, setPdCustomLabels: setCustomLabels,
+  pdCustomMemos: customMemos, setPdCustomMemos: setCustomMemos,
+}: PriorityDataProps) {
+  const isIt = language === "it";
+  const [slideIdx, setSlideIdx] = React.useState(0);
+  const [selectedNeedId, setSelectedNeedId] = React.useState<string|null>(null);
+  const [customModalOpen, setCustomModalOpen] = React.useState<string|null>(null); // priority key
+  const [customLabelDraft, setCustomLabelDraft] = React.useState("");
+  const [customMemoDraft, setCustomMemoDraft] = React.useState("");
+  const totalSlides = priorities.length;
+  const p = priorities[slideIdx];
+  const colItems = dataNeeds.filter(n => n.priority === p);
+  const isPriorityDisabled = !(priorityIncluded[p] ?? true);
+
+  // Contatore totale esigenze incluse (deduplicato per label)
+  const totalIncluded = React.useMemo(() => {
+    const seenLabels = new Set<string>();
+    let count = 0;
+    priorities.forEach(prio => {
+      dataNeeds.filter(n => n.priority === prio).forEach(item => {
+        if (!isNeedIncluded(item.id)) return;
+        if (seenLabels.has(item.label)) return;
+        seenLabels.add(item.label);
+        count++;
+      });
+      // custom row per questa priority
+      const cId = `custom-${prio}`;
+      if (isNeedIncluded(cId) && customLabels[prio]?.trim()) count++;
+    });
+    return count;
+  }, [priorities, dataNeeds, needIncluded, customLabels]);
+
+  // id sintetico per la riga custom di questa priority
+  const customId = `custom-${p}`;
+
+  // Tooltip stato per le righe ereditate
+  const [inheritedTooltip, setInheritedTooltip] = React.useState<string|null>(null);
+
+  // Per ogni item del slide corrente, cerca se la stessa label esiste in un obiettivo precedente già incluso
+  const getInheritedFrom = (item: {id:string, label:string}): {srcSlideIdx:number, srcId:string, priorityName:string} | null => {
+    for (let i = 0; i < slideIdx; i++) {
+      const prevPriority = priorities[i];
+      const prevItems = dataNeeds.filter(n => n.priority === prevPriority);
+      const match = prevItems.find(n => n.label === item.label);
+      if (match && isNeedIncluded(match.id)) {
+        return { srcSlideIdx: i, srcId: match.id, priorityName: (t.priorityNames as Record<string,string>)[prevPriority] };
+      }
+    }
+    return null;
+  };
+
+  // Quando cambia slide, azzera la selezione
+  React.useEffect(()=>{ setSelectedNeedId(null); }, [slideIdx]);
+  const [matrixBlockWarn, setMatrixBlockWarn] = React.useState(false);
+  const goToMatrix = () => {
+    const seenLabels = new Set<string>();
+    let count = 0;
+    priorities.forEach(prio => {
+      dataNeeds.filter(n => n.priority === prio).forEach(item => {
+        if (!(needIncluded[item.id] ?? false)) return;
+        if (seenLabels.has(item.label)) return;
+        seenLabels.add(item.label);
+        count++;
+      });
+      const cId = `custom-${prio}`;
+      if ((needIncluded[cId] ?? false) && customLabels[prio]?.trim()) count++;
+    });
+    if(count<5){ setMatrixBlockWarn(true); return; }
+    setScreen("priorityMatrix");
+  };
+  const [zoomWarnOpen,setZoomWarnOpen]=React.useState(false);
+  React.useEffect(()=>{
+    const handler=(e:KeyboardEvent)=>{
+      const mod=e.metaKey||e.ctrlKey;
+      if(!mod)return;
+      if(e.key==="+"||e.key==="="||e.key==="-"||e.key==="0"){e.preventDefault();setZoomWarnOpen(true);}
+    };
+    window.addEventListener("keydown",handler);
+    return ()=>window.removeEventListener("keydown",handler);
+  },[]);
+
+  const useCases = (t.needUseCases ?? {}) as Record<string,string>;
+  const examples = (t.needExamples ?? {}) as Record<string,string>;
+  const selectedItem = selectedNeedId && selectedNeedId !== customId
+    ? colItems.find(n => n.id === selectedNeedId) ?? null
+    : null;
+  const selectedUseCase = selectedItem ? (useCases[selectedItem.label] ?? null) : null;
+  const selectedExample = selectedItem ? (examples[selectedItem.label] ?? null) : null;
+
+  const openCustomModal = (prioKey: string) => {
+    setCustomLabelDraft(customLabels[prioKey] ?? "");
+    setCustomMemoDraft(customMemos[prioKey] ?? "");
+    setCustomModalOpen(prioKey);
+  };
+  const closeCustomModal = () => setCustomModalOpen(null);
+  const saveCustomModal = () => {
+    if(customModalOpen) {
+      if(customLabelDraft.trim()) setCustomLabels(prev=>({...prev,[customModalOpen]:customLabelDraft.trim()}));
+      setCustomMemos(prev=>({...prev,[customModalOpen]:customMemoDraft}));
+    }
+    setCustomModalOpen(null);
+  };
+
+  const exportDataNeedsCsv = () => {
+    const missionNames: {[k:number]:{it:string,en:string}} = {0:{it:"M1 · Fabbrica dei dati ESG",en:"M1 · ESG data factory"},1:{it:"M2 · Energia e decarbonizzazione",en:"M2 · Energy and decarbonisation"},2:{it:"M3 · Coinvolgimento supply chain",en:"M3 · Supply chain engagement"},3:{it:"M4 · Reporting e performance",en:"M4 · Reporting and performance"},4:{it:"M5 · Rotta verso Net Zero",en:"M5 · Net Zero pathway"},5:{it:"M6 · Framework ESG e disclosure",en:"M6 · ESG frameworks and disclosure"}};
+    const esc = (s:string) => s.includes(",")||s.includes('"')||s.includes("\n")?`"${s.replace(/"/g,'""')}"`:s;
+    const headers = isIt ? ["Rank","Priorità di business","ID","Esigenza di gestione dati ESG","Inclusa","Rilevanza (1-10)","Criticità (1-10)","Priorità (tier)","Missione / Sfida Quest","Modulo IBM Envizi"] : ["Rank","Business priority","ID","ESG data management need","Included","Relevance (1-10)","Criticality (1-10)","Priority tier","Mission / Quest challenge","IBM Envizi module"];
+    const rows: string[][] = [];
+    priorities.forEach((p,pi) => {
+      const items = dataNeeds.filter(n => n.priority === p);
+      items.forEach((item,ii) => {
+        const rel = Math.min(needRelevance[item.id]??5,10);
+        const crit = needCriticality[item.id]??5;
+        const included = isNeedIncluded(item.id);
+        const tier = rel>7&&crit>7?(isIt?"Alta":"High"):rel>4||crit>4?(isIt?"Media":"Medium"):(isIt?"Bassa":"Low");
+        const mi = needIdToMission[item.id]??null;
+        const missionLabel = mi!==null?(isIt?missionNames[mi].it:missionNames[mi].en):(isIt?"Trasversale":"Cross-cutting");
+        const cap = needIdToCapability[item.id];
+        const capLabel = cap?(isIt?cap.it:cap.en):"";
+        rows.push([`${pi+1}.${ii+1}`,isIt?(t.priorityNames as Record<string,string>)[p]:(t.priorityNames as Record<string,string>)[p],item.id,item.label,included?(isIt?"Sì":"Yes"):(isIt?"No":"No"),String(rel),String(crit),tier,missionLabel,capLabel]);
+      });
+    });
+    const csv = "\uFEFF"+[headers,...rows].map(r=>r.map(esc).join(",")).join("\n");
+    const blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download=`Envizi-Quest-Esigenze-${displayCompanyName.replace(/[^a-zA-Z0-9]/g,"_")||"Export"}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return <main className="pdSlideScreen" style={{position:"relative"}}>
+    {zoomWarnOpen&&<div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(7,18,15,.82)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setZoomWarnOpen(false)}><div style={{background:"#0d1f19",border:"1px solid rgba(57,239,180,.3)",borderRadius:"14px",padding:"28px 32px",maxWidth:"380px",width:"90vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}><p style={{margin:"0 0 8px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".14em",textTransform:"uppercase",color:"#39efb4"}}>{isIt?"Attenzione":"Warning"}</p><p style={{margin:"0 0 20px",fontSize:"15px",color:"#e8f5ef",lineHeight:1.5}}>{isIt?"Il rapporto di visualizzazione è ottimizzato per questa schermata. Sei sicuro di voler cambiare lo zoom?":"The display ratio is optimised for this screen. Are you sure you want to change the zoom?"}</p><div style={{display:"flex",gap:"10px",justifyContent:"center"}}><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid rgba(57,239,180,.35)",background:"transparent",color:"#39efb4",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Annulla":"Cancel"}</button><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid #c84040",background:"rgba(200,64,64,.12)",color:"#ff8080",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Continua comunque":"Continue anyway"}</button></div></div></div>}
+    <div style={{position:"fixed",top:0,left:0,right:0,height:"4px",background:"#3b82f4",zIndex:9999,pointerEvents:"none"}}/>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,height:"4px",background:"#39efb4",zIndex:9999,pointerEvents:"none"}}/>
+    <header className="missionNav missionNavTrust">
+      <button className="brand brandButton" onClick={reset}><span className="brandMark">e·</span><span>Envizi<br/>Impact Quest</span></button>
+      <div className="missionProgress"><span className="activeDot"/> DATA NEEDS</div>
+      {renderTrustBar()}
+      <div style={{display:"flex",alignItems:"center",gap:"6px",padding:"4px 12px",borderRadius:"20px",background:"rgba(57,239,180,.10)",border:"1px solid rgba(57,239,180,.28)",whiteSpace:"nowrap"}}>
+        <span style={{fontSize:"11px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".08em",textTransform:"uppercase",color:"#39efb4",opacity:.75}}>{isIt?"Incluse":"Included"}</span>
+        <span style={{fontSize:"15px",fontWeight:700,color:"#39efb4",fontVariantNumeric:"tabular-nums",minWidth:"1.6em",textAlign:"center"}}>{totalIncluded}</span>
+      </div>
+      <button className="langMini" onClick={()=>setLanguage(language==="it"?"en":"it")}>{language==="it"?"EN":"IT"}</button>
+    </header>
+
+    {/* ── Top bar: titolo + navigazione ── */}
+    <div className="pdSlideTopBar">
+      <div className="pdSlideTopLeft">
+        <p className="pdSlideTitleLabel">{isIt?"Dagli obiettivi alle esigenze di gestione dati ESG":"From objectives to ESG data management needs"}</p>
+        <div className="pdSlideObjHeader">
+          <span className="pdSlideObjNum">{String(slideIdx+1).padStart(2,"0")}</span>
+          <div>
+            <span className="pdSlideObjMeta">{isIt?"Obiettivo:":"Objective:"}</span>
+            <span className="pdSlideObjName">{(t.priorityNames as Record<string,string>)[p]}</span>
+          </div>
+        </div>
+      </div>
+      <div className="pdSlideNavRow">
+        {/* Dot pills navigazione obiettivi */}
+        <div className="pdSlideDots">
+          {priorities.map((_,i)=>(
+            <button key={i} className={`pdSlideDot${i===slideIdx?" pdSlideDotActive":""}`} onClick={()=>setSlideIdx(i)} aria-label={`Obiettivo ${i+1}`}/>
+          ))}
+        </div>
+        <div className="pdSlideNavBtns">
+          <button className="pdSlideNavBtn" onClick={()=>{ if(slideIdx===0) goBack(); else setSlideIdx(i=>i-1); }}>←</button>
+          <span className="pdSlideNavCount">{slideIdx+1} / {totalSlides}</span>
+          <button
+            className="pdSlideNavBtn"
+            onClick={()=>{ if(slideIdx===totalSlides-1) goToMatrix(); else setSlideIdx(i=>i+1); }}
+          >→</button>
+        </div>
+      </div>
+    </div>
+    {matrixBlockWarn && (
+      <div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(7,18,15,.82)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setMatrixBlockWarn(false)}>
+        <div style={{background:"#0d1f19",border:"1px solid rgba(251,191,36,.4)",borderRadius:"14px",padding:"32px 36px",maxWidth:"400px",width:"90vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}>
+          <p style={{margin:"0 0 6px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".14em",textTransform:"uppercase",color:"#fbbf24"}}>{isIt?"Attenzione":"Warning"}</p>
+          <p style={{margin:"0 0 6px",fontSize:"22px"}}>⚠</p>
+          <p style={{margin:"0 0 20px",fontSize:"15px",color:"#e8f5ef",lineHeight:1.6}}>
+            {isIt
+              ? <><strong style={{color:"#fbbf24"}}>{totalIncluded}</strong> {totalIncluded===1?"esigenza inclusa":"esigenze incluse"}. Devi includere nell'analisi <strong style={{color:"#39efb4"}}>almeno 5 esigenze</strong> di gestione dati prima di accedere alla matrice di priorità.</>
+              : <><strong style={{color:"#fbbf24"}}>{totalIncluded}</strong> {totalIncluded===1?"need included":"needs included"}. You need to include <strong style={{color:"#39efb4"}}>at least 5 data management needs</strong> before accessing the priority matrix.</>
+            }
+          </p>
+          <button style={{padding:"10px 28px",borderRadius:"8px",border:"1px solid rgba(57,239,180,.35)",background:"transparent",color:"#39efb4",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setMatrixBlockWarn(false)}>{isIt?"Torna alla selezione":"Back to selection"}</button>
+        </div>
+      </div>
+    )}
+
+    {/* ── Corpo: lista items + colonna destra fissa ── */}
+    <div className="pdSlideBody">
+      {/* Lista esigenze */}
+      <div className="pdSlideList" style={isPriorityDisabled?{position:"relative"}:undefined}>
+        {/* ── Banner obiettivo deselezionato ── */}
+        {isPriorityDisabled && (
+          <div style={{position:"absolute",inset:0,zIndex:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"rgba(7,18,15,0.72)",borderRadius:"10px",gap:"12px",padding:"32px 24px",textAlign:"center",pointerEvents:"auto"}}>
+            <span style={{fontSize:"clamp(28px,2.5vw,40px)",lineHeight:1}}>⊘</span>
+            <p style={{margin:0,fontSize:"clamp(14px,1.2vw,17px)",color:"#b5c9c1",fontWeight:600,lineHeight:1.4}}>
+              {isIt?"Obiettivo deselezionato":"Objective deselected"}
+            </p>
+            <div style={{display:"flex",gap:"10px",flexWrap:"wrap",justifyContent:"center",marginTop:"4px"}}>
+              <button
+                className="secondaryAction"
+                style={{fontSize:"clamp(12px,1vw,14px)",padding:"8px 20px"}}
+                onClick={()=>setScreen("priorities")}
+              >
+                {isIt?"← Business Priorities":"← Business Priorities"}
+              </button>
+              {slideIdx < totalSlides-1
+                ? <button
+                    className="actionButton"
+                    style={{fontSize:"clamp(12px,1vw,14px)",padding:"8px 20px"}}
+                    onClick={()=>setSlideIdx(i=>i+1)}
+                  >
+                    {isIt?"Prossimo obiettivo →":"Next objective →"}
+                  </button>
+                : <button
+                    className="actionButton"
+                    style={{fontSize:"clamp(12px,1vw,14px)",padding:"8px 20px"}}
+                    onClick={goToMatrix}
+                  >
+                    {isIt?"Vai alla matrice →":"Go to matrix →"}
+                  </button>
+              }
+            </div>
+          </div>
+        )}
+        {/* Header colonne */}
+        <div className="pdSlideColHeader">
+          <div className="pdSlideColHLabel">{isIt?"Esigenza di gestione dati ESG":"ESG data management need"}</div>
+          <div className="pdSlideColHIncl">{isIt?"Includi":"Include"}</div>
+          <div className="pdSlideColHScore">{isIt?"Rilevanza":"Relevance"}</div>
+          <div className="pdSlideColHScore">{isIt?"Criticità":"Criticality"}</div>
+        </div>
+        {colItems.map((item, posInGroup)=>{
+          const rankLabel = `${slideIdx+1}.${posInGroup+1}`;
+          const relMax = 10;
+          const inherited = getInheritedFrom(item);
+          // se ereditato, usa i valori dell'item sorgente
+          const srcId = inherited ? inherited.srcId : item.id;
+          const rel = Math.min(needRelevance[srcId]??5, 10);
+          const crit = needCriticality[srcId]??5;
+          const included = isNeedIncluded(srcId);
+          const tier = rel>7&&crit>7?"high":rel>4||crit>4?"mid":"low";
+          const tierColor = tier==="high"?"#ff4d4d":tier==="mid"?"#7dd3fc":"#9ca3af";
+          const isSelected = selectedNeedId === item.id;
+          const tooltipId = `inh-${item.id}`;
+          const showInheritedMsg = () => setInheritedTooltip(inheritedTooltip===tooltipId ? null : tooltipId);
+          return <div key={item.id} className={`pdSlideRow${included?"":" pdSlideRowDimmed"}${isSelected?" pdSlideRowSelected":""}`} style={inherited?{opacity:0.75}:undefined}>
+            <div className="pdSlideRowLabel pdSlideRowLabelClickable" style={{color: included ? tierColor : "#c5d8d2"}}
+              onClick={()=>{ if(inherited) showInheritedMsg(); else setSelectedNeedId(isSelected ? null : item.id); }}>
+              <span className="pdSlideRowCode">{rankLabel}</span>
+              <span className="pdSlideRowText">{item.label}</span>
+              {inherited
+                ? <span className="pdInheritedBadge">↩</span>
+                : <span className="pdSlideRowSelectHint">{isSelected?"▾":"▸"}</span>
+              }
+            </div>
+            {inherited && inheritedTooltip===tooltipId && (
+              <div className="pdInheritedTooltip" style={{gridColumn:"1 / -1"}} onClick={e=>e.stopPropagation()}>
+                {isIt
+                  ? <>Questa esigenza è già stata valutata nell'obiettivo <strong>{inherited.priorityName}</strong>. Per modificare la valutazione torna a quell'obiettivo.{" "}<button className="pdInheritedGoBtn" onClick={()=>{ setInheritedTooltip(null); setSlideIdx(inherited.srcSlideIdx); }}>Vai →</button></>
+                  : <>This need was already rated under objective <strong>{inherited.priorityName}</strong>. To change the rating, go back to that objective.{" "}<button className="pdInheritedGoBtn" onClick={()=>{ setInheritedTooltip(null); setSlideIdx(inherited.srcSlideIdx); }}>Go →</button></>
+                }
+                <button className="pdInheritedCloseBtn" onClick={()=>setInheritedTooltip(null)}>✕</button>
+              </div>
+            )}
+            <div className="pdSlideRowIncl">
+              <button
+                className={`pdInclBtn${included?" pdInclBtnOn":""}`}
+                style={{"--incl-color": tierColor} as React.CSSProperties}
+                onClick={()=>{ if(inherited) showInheritedMsg(); else toggleNeedIncluded(item.id); }}
+                aria-label={included?(isIt?"Escludi":"Exclude"):(isIt?"Includi":"Include")}
+              />
+            </div>
+            <div className="pdSlideRowScore" onClick={()=>{ if(inherited) showInheritedMsg(); }}>
+              <input type="range" min={1} max={relMax} value={rel}
+                style={{"--v":rel,"--vmax":relMax-1} as React.CSSProperties}
+                onChange={e=>{ if(!inherited) setNeedRelevance(v=>({...v,[item.id]:Number(e.target.value)})); }}
+                className="pdScoreSlider pdSliderRel" disabled={!included||!!inherited}/>
+              <span className="pdBandVal pdBandValRel" style={{opacity:included?1:0.35}}>{rel}<span className="pdBandMax">/{relMax}</span></span>
+            </div>
+            <div className="pdSlideRowScore" onClick={()=>{ if(inherited) showInheritedMsg(); }}>
+              <input type="range" min={1} max={10} value={crit}
+                style={{"--v":crit} as React.CSSProperties}
+                onChange={e=>{ if(!inherited) setNeedCriticality(v=>({...v,[item.id]:Number(e.target.value)})); }}
+                className="pdScoreSlider pdSliderCrit" disabled={!included||!!inherited}/>
+              <span className="pdBandVal pdBandValCrit" style={{opacity:included?1:0.35}}>{crit}</span>
+            </div>
+          </div>;
+        })}
+
+        {/* ── Riga custom "Altro" ── */}
+        {(()=>{
+          const cRel  = Math.min(needRelevance[customId]??5, 10);
+          const cCrit = needCriticality[customId]??5;
+          const cIncl = isNeedIncluded(customId);
+          const cLabel = customLabels[p] || (isIt?"Altro":"Other");
+          const tier = cRel>7&&cCrit>7?"high":cRel>4||cCrit>4?"mid":"low";
+          const tierColor = tier==="high"?"#ff4d4d":tier==="mid"?"#7dd3fc":"#9ca3af";
+          const rankLabel = `${slideIdx+1}.${colItems.length+1}`;
+          return (
+            <div className={`pdSlideRow pdSlideRowCustom${cIncl?"":" pdSlideRowDimmed"}`}>
+              <div className="pdSlideRowLabel pdSlideRowLabelClickable" style={{color:cIncl?tierColor:"#c5d8d2"}}
+                onClick={()=>openCustomModal(p)}
+                title={isIt?"Clicca per modificare":"Click to edit"}>
+                <span className="pdSlideRowCode">{rankLabel}</span>
+                <span className="pdSlideRowText">{cLabel}</span>
+                <span className="pdSlideRowSelectHint">✏</span>
+              </div>
+              <div className="pdSlideRowIncl">
+                <button
+                  className={`pdInclBtn${cIncl?" pdInclBtnOn":""}`}
+                  style={{"--incl-color":tierColor} as React.CSSProperties}
+                  onClick={()=>toggleNeedIncluded(customId)}
+                  aria-label={cIncl?(isIt?"Escludi":"Exclude"):(isIt?"Includi":"Include")}
+                />
+              </div>
+              <div className="pdSlideRowScore">
+                <input type="range" min={1} max={10} value={cRel}
+                  style={{"--v":cRel,"--vmax":9} as React.CSSProperties}
+                  onChange={e=>setNeedRelevance(v=>({...v,[customId]:Number(e.target.value)}))}
+                  className="pdScoreSlider pdSliderRel" disabled={!cIncl}/>
+                <span className="pdBandVal pdBandValRel" style={{opacity:cIncl?1:0.35}}>{cRel}<span className="pdBandMax">/10</span></span>
+              </div>
+              <div className="pdSlideRowScore">
+                <input type="range" min={1} max={10} value={cCrit}
+                  style={{"--v":cCrit} as React.CSSProperties}
+                  onChange={e=>setNeedCriticality(v=>({...v,[customId]:Number(e.target.value)}))}
+                  className="pdScoreSlider pdSliderCrit" disabled={!cIncl}/>
+                <span className="pdBandVal pdBandValCrit" style={{opacity:cIncl?1:0.35}}>{cCrit}</span>
+              </div>
+            </div>
+          );
+        })()}
+
+      </div>
+
+      {/* ── Modale use case ── */}
+      {selectedNeedId && selectedItem && (()=>{
+        const mRel  = Math.min(needRelevance[selectedNeedId]??5, 10);
+        const mCrit = needCriticality[selectedNeedId]??5;
+        const mIncluded = isNeedIncluded(selectedNeedId);
+        const setRel  = (v:number) => {
+          setNeedRelevance(prev=>({...prev,[selectedNeedId]:v}));
+          if(!mIncluded) toggleNeedIncluded(selectedNeedId);
+        };
+        const setCrit = (v:number) => {
+          setNeedCriticality(prev=>({...prev,[selectedNeedId]:v}));
+          if(!mIncluded) toggleNeedIncluded(selectedNeedId);
+        };
+        return (
+          <div className="pdNeedModalOverlay" onClick={()=>setSelectedNeedId(null)}>
+            <div className="pdNeedModal" onClick={e=>e.stopPropagation()}>
+              <div className="pdNeedModalHead">
+                <span className="pdNeedModalIcon">💡</span>
+                <span className="pdNeedModalLabel">{selectedItem.label}</span>
+                <button className="pdNeedModalClose" onClick={()=>setSelectedNeedId(null)}>✕</button>
+              </div>
+              <div className="pdNeedModalBody">
+                {selectedUseCase
+                  ? selectedUseCase.split("\n").map((line,i)=>{
+                      const idx = line.indexOf(" — ");
+                      if(idx > -1) return <p key={i} className="pdUseCaseLine"><strong>{line.slice(0,idx)}</strong><span>{line.slice(idx)}</span></p>;
+                      return <p key={i} className="pdUseCaseLine">{line}</p>;
+                    })
+                  : <p className="pdUseCaseLine" style={{color:"#4a7a68",fontStyle:"italic"}}>{isIt?"Nessun use case disponibile per questa esigenza.":"No use case available for this need."}</p>
+                }
+                {selectedExample && (
+                  <div className="pdUseCaseExample">
+                    <p className="pdUseCaseExampleLabel"><strong>{isIt?"Scenario":"Scenario"}</strong></p>
+                    <p className="pdUseCaseExampleText">{selectedExample}</p>
+                  </div>
+                )}
+
+                {/* ── Vota ── */}
+                <div className="pdNeedModalVote">
+                  <p className="pdNeedModalVoteQ">
+                    {isIt
+                      ? "Quanto è rilevante questo use case nella tua realtà, e quanto è problematico / critico?"
+                      : "How relevant is this use case in your context, and how critical / problematic?"}
+                  </p>
+                  <div className="pdNeedModalScores">
+                    {/* Rilevanza */}
+                    <div className="pdNeedModalScoreCol">
+                      <span className="pdNeedModalScoreLabel pdNeedModalScoreLabelRel">{isIt?"Rilevanza":"Relevance"}</span>
+                      <div className="pdNeedModalStepper">
+                        <button className="pdNeedModalStep" onClick={()=>setRel(Math.min(10,mRel+1))} disabled={mRel>=10}>▲</button>
+                        <span className={`pdNeedModalVal${mRel>5?" pdNeedModalValHigh":""}`}>{mRel}<span className="pdNeedModalValMax">/10</span></span>
+                        <button className="pdNeedModalStep" onClick={()=>setRel(Math.max(1,mRel-1))} disabled={mRel<=1}>▼</button>
+                      </div>
+                      <span className="pdNeedModalScoreHint">{isIt?"1 = poco rilevante · 10 = molto":"1 = low · 10 = very relevant"}</span>
+                    </div>
+                    {/* Criticità */}
+                    <div className="pdNeedModalScoreCol">
+                      <span className="pdNeedModalScoreLabel pdNeedModalScoreLabelCrit">{isIt?"Criticità":"Criticality"}</span>
+                      <div className="pdNeedModalStepper">
+                        <button className="pdNeedModalStep" onClick={()=>setCrit(Math.min(10,mCrit+1))} disabled={mCrit>=10}>▲</button>
+                        <span className={`pdNeedModalVal${mCrit>5?" pdNeedModalValHigh":""}`}>{mCrit}<span className="pdNeedModalValMax">/10</span></span>
+                        <button className="pdNeedModalStep" onClick={()=>setCrit(Math.max(1,mCrit-1))} disabled={mCrit<=1}>▼</button>
+                      </div>
+                      <span className="pdNeedModalScoreHint">{isIt?"1 = poco critico · 10 = molto":"1 = low · 10 = very critical"}</span>
+                    </div>
+                    {/* Includi pill */}
+                    <div className="pdNeedModalScoreCol pdNeedModalInclCol">
+                      <span className="pdNeedModalScoreLabel">{isIt?"Includi":"Include"}</span>
+                      <button
+                        className={`pdInclBtn pdInclBtnLg${mIncluded?" pdInclBtnOn":""}`}
+                        onClick={()=>toggleNeedIncluded(selectedNeedId)}
+                        aria-label={mIncluded?(isIt?"Escludi":"Exclude"):(isIt?"Includi":"Include")}
+                      />
+                      <span className="pdNeedModalScoreHint">{mIncluded?(isIt?"In analisi":"In analysis"):(isIt?"Esclusa":"Excluded")}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Modale custom "Altro" ── */}
+      {customModalOpen && (()=>{
+        const ck = customModalOpen;
+        const ckId = `custom-${ck}`;
+        const mRel  = Math.min(needRelevance[ckId]??5, 10);
+        const mCrit = needCriticality[ckId]??5;
+        const mIncl = isNeedIncluded(ckId);
+        const setRel = (v:number)=>{ setNeedRelevance(prev=>({...prev,[ckId]:v})); if(!mIncl) toggleNeedIncluded(ckId); };
+        const setCrit= (v:number)=>{ setNeedCriticality(prev=>({...prev,[ckId]:v})); if(!mIncl) toggleNeedIncluded(ckId); };
+        return (
+          <div className="pdNeedModalOverlay" onClick={closeCustomModal}>
+            <div className="pdNeedModal" onClick={e=>e.stopPropagation()}>
+              <div className="pdNeedModalHead">
+                <span className="pdNeedModalIcon">✏</span>
+                <span className="pdNeedModalLabel">{isIt?"Esigenza personalizzata":"Custom need"}</span>
+                <button className="pdNeedModalClose" onClick={closeCustomModal}>✕</button>
+              </div>
+              <div className="pdNeedModalBody">
+                {/* Titolo editabile — max 1 riga */}
+                <div className="pdCustomTitleWrap">
+                  <label className="pdCustomTitleLabel">{isIt?"Nome esigenza (max 1 riga)":"Need name (single line)"}</label>
+                  <input
+                    className="pdCustomTitleInput"
+                    type="text"
+                    maxLength={120}
+                    placeholder={isIt?"Altro…":"Other…"}
+                    value={customLabelDraft}
+                    onChange={e=>setCustomLabelDraft(e.target.value)}
+                  />
+                </div>
+                {/* Memo — 4 righe */}
+                <div className="pdCustomTitleWrap">
+                  <label className="pdCustomTitleLabel">{isIt?"Note / memo":"Notes / memo"}</label>
+                  <textarea
+                    className="pdCustomMemoArea"
+                    rows={4}
+                    placeholder={isIt?"Descrivi il contesto, la situazione attuale, eventuali vincoli…":"Describe the context, current situation, constraints…"}
+                    value={customMemoDraft}
+                    onChange={e=>setCustomMemoDraft(e.target.value)}
+                  />
+                </div>
+                {/* Vota */}
+                <div className="pdNeedModalVote">
+                  <p className="pdNeedModalVoteQ">
+                    {isIt
+                      ? "Quanto è rilevante questa esigenza nella tua realtà, e quanto è problematica / critica?"
+                      : "How relevant is this need in your context, and how critical / problematic?"}
+                  </p>
+                  <div className="pdNeedModalScores">
+                    <div className="pdNeedModalScoreCol">
+                      <span className="pdNeedModalScoreLabel pdNeedModalScoreLabelRel">{isIt?"Rilevanza":"Relevance"}</span>
+                      <div className="pdNeedModalStepper">
+                        <button className="pdNeedModalStep" onClick={()=>setRel(Math.min(10,mRel+1))} disabled={mRel>=10}>▲</button>
+                        <span className={`pdNeedModalVal${mRel>5?" pdNeedModalValHigh":""}`}>{mRel}<span className="pdNeedModalValMax">/10</span></span>
+                        <button className="pdNeedModalStep" onClick={()=>setRel(Math.max(1,mRel-1))} disabled={mRel<=1}>▼</button>
+                      </div>
+                      <span className="pdNeedModalScoreHint">{isIt?"1 = poco · 10 = molto":"1 = low · 10 = high"}</span>
+                    </div>
+                    <div className="pdNeedModalScoreCol">
+                      <span className="pdNeedModalScoreLabel pdNeedModalScoreLabelCrit">{isIt?"Criticità":"Criticality"}</span>
+                      <div className="pdNeedModalStepper">
+                        <button className="pdNeedModalStep" onClick={()=>setCrit(Math.min(10,mCrit+1))} disabled={mCrit>=10}>▲</button>
+                        <span className={`pdNeedModalVal${mCrit>5?" pdNeedModalValHigh":""}`}>{mCrit}<span className="pdNeedModalValMax">/10</span></span>
+                        <button className="pdNeedModalStep" onClick={()=>setCrit(Math.max(1,mCrit-1))} disabled={mCrit<=1}>▼</button>
+                      </div>
+                      <span className="pdNeedModalScoreHint">{isIt?"1 = poco · 10 = molto":"1 = low · 10 = high"}</span>
+                    </div>
+                    <div className="pdNeedModalScoreCol pdNeedModalInclCol">
+                      <span className="pdNeedModalScoreLabel">{isIt?"Includi":"Include"}</span>
+                      <button
+                        className={`pdInclBtn pdInclBtnLg${mIncl?" pdInclBtnOn":""}`}
+                        onClick={()=>toggleNeedIncluded(ckId)}
+                        aria-label={mIncl?(isIt?"Escludi":"Exclude"):(isIt?"Includi":"Include")}
+                      />
+                      <span className="pdNeedModalScoreHint">{mIncl?(isIt?"In analisi":"In analysis"):(isIt?"Esclusa":"Excluded")}</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Salva */}
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:"8px"}}>
+                  <button className="actionButton" style={{minWidth:"140px"}} onClick={saveCustomModal}>
+                    {isIt?"Salva →":"Save →"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Colonna destra fissa */}
+      <div className="pdSlideRight">
+        <div className="pdPersona">
+          <img src={`./characters/${profile}-neutral.png`} alt={name}/>
+          <div><strong>{name}</strong><small>ESG MANAGER</small></div>
+        </div>
+        <div className="pdScoreLegend">
+          <div className="pdScoreLegendRow"><span className="pdLegendDot pdLegendRel"/>
+            <div><strong>{isIt?"Rilevanza":"Relevance"}</strong><small>{isIt?"1 = poco rilevante · 10 = molto rilevante":"1 = low relevance · 10 = very relevant"}</small></div>
+          </div>
+          <div className="pdScoreLegendRow"><span className="pdLegendDot pdLegendCrit"/>
+            <div><strong>{isIt?"Criticità":"Criticality"}</strong><small>{isIt?"1 = poco problematico · 10 = molto problematico":"1 = low severity · 10 = very critical"}</small></div>
+          </div>
+        </div>
+        <div className="pdTierLegend pdTierLegendVert">
+          <span><span style={{color:"#ff4d4d"}}>⬡</span> <span>{isIt?"Alta (R>7 e C>7)":"High (R>7 and C>7)"}</span></span>
+          <span><span style={{color:"#7dd3fc"}}>⬡</span> <span>{isIt?"Media (R>4 o C>4)":"Medium (R>4 or C>4)"}</span></span>
+          <span><span style={{color:"#9ca3af"}}>⬡</span> <span>{isIt?"Bassa":"Low"}</span></span>
+        </div>
+        <div className="pdSlideRightActions">
+          <button className="secondaryAction" style={{fontSize:"clamp(12px,1vw,14px)",padding:"10px 12px",width:"100%"}} onClick={exportDataNeedsCsv}>↓ {isIt?"Esporta CSV":"Export CSV"}</button>
+          {slideIdx < totalSlides-1
+            ? <button className="actionButton" style={{width:"100%"}} onClick={()=>setSlideIdx(i=>i+1)}>{isIt?"Prossimo obiettivo →":"Next objective →"}</button>
+            : <button className="actionButton" style={{width:"100%"}} onClick={goToMatrix}>{isIt?"Vai alla matrice":"Go to matrix"}<b>→</b></button>
+          }
+        </div>
+      </div>
+    </div>
+  </main>;
+}
+
+// ── priorityMatrix ────────────────────────────────────────────────────────────
+
+interface PriorityMatrixProps extends CommonProps {
+  priorities: Priority[];
+  dataNeeds: NeedItem[];
+  needRelevance: Record<string, number>;
+  setNeedRelevance: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  needCriticality: Record<string, number>;
+  setNeedCriticality: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  needIncluded: Record<string, boolean>;
+  isNeedIncluded: (id: string) => boolean;
+  focusMinR: number;
+  setFocusMinR: (v: number) => void;
+  focusMinC: number;
+  setFocusMinC: (v: number) => void;
+  hoveredPriority: Priority | null;
+  setHoveredPriority: (p: Priority | null) => void;
+  pmMissionFilter: number | null;
+  setPmMissionFilter: (v: number | null) => void;
+  pmFromBriefing: boolean;
+  setPmFromBriefing: (v: boolean) => void;
+  pmSelected: {id:string,label:string,rel:number,crit:number,color:string} | null;
+  setPmSelected: (v: {id:string,label:string,rel:number,crit:number,color:string} | null) => void;
+  needIdToMission: Record<string, number>;
+  renderTrustBar: () => JSX.Element;
+  t: Record<string, any>;
+  ucSelections: Record<string, number[]>;
+  setUcSelections: React.Dispatch<React.SetStateAction<Record<string, number[]>>>;
+}
+
+export function PriorityMatrixScreen({
+  language, setLanguage, setScreen, reset, renderTrustBar,
+  priorities, dataNeeds, needRelevance, setNeedRelevance, needCriticality, setNeedCriticality, isNeedIncluded,
+  focusMinR, setFocusMinR, focusMinC, setFocusMinC,
+  hoveredPriority, setHoveredPriority, pmMissionFilter, setPmMissionFilter,
+  pmFromBriefing, setPmFromBriefing, pmSelected, setPmSelected,
+  needIdToMission, t, ucSelections, setUcSelections,
+}: PriorityMatrixProps) {
+  const isIt = language === "it";
+  const [zoomWarnOpen,setZoomWarnOpen]=React.useState(false);
+  React.useEffect(()=>{
+    const handler=(e:KeyboardEvent)=>{
+      const mod=e.metaKey||e.ctrlKey;
+      if(!mod)return;
+      if(e.key==="+"||e.key==="="||e.key==="-"||e.key==="0"){e.preventDefault();setZoomWarnOpen(true);}
+    };
+    window.addEventListener("keydown",handler);
+    return ()=>window.removeEventListener("keydown",handler);
+  },[]);
+
+  // ── Drag state ────────────────────────────────────────────────────────────
+  const svgRef = React.useRef<SVGSVGElement>(null);
+  const dragState = React.useRef<{id:string,moved:boolean}|null>(null);
+  const [draggingId,setDraggingId]=useState<string|null>(null);
+
+  const svgPoint = React.useCallback((clientX:number,clientY:number):{x:number,y:number}|null=>{
+    const svg = svgRef.current;
+    if(!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if(!ctm) return null;
+    return pt.matrixTransform(ctm.inverse());
+  },[]);
+
+  // SVG coords → clamped integer R/C value (1-10)
+  const fromX = React.useCallback((sx:number)=>Math.max(1,Math.min(10,Math.round((sx-PAD_L)/MATRIX_W*(10-1)+1))),[]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fromY = React.useCallback((sy:number)=>Math.max(1,Math.min(10,Math.round(10-(sy/MATRIX_H)*(10-1)))),[]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(()=>{
+    const onMove=(e:MouseEvent)=>{
+      if(!dragState.current) return;
+      dragState.current.moved=true;
+      const p=svgPoint(e.clientX,e.clientY);
+      if(!p) return;
+      const id=dragState.current.id;
+      const newR=fromX(p.x);
+      const newC=fromY(p.y);
+      setNeedRelevance(prev=>prev[id]===newR?prev:{...prev,[id]:newR});
+      setNeedCriticality(prev=>prev[id]===newC?prev:{...prev,[id]:newC});
+    };
+    const onUp=()=>{
+      dragState.current=null;
+      setDraggingId(null);
+    };
+    window.addEventListener("mousemove",onMove);
+    window.addEventListener("mouseup",onUp);
+    return ()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
+  },[svgPoint,fromX,fromY,setNeedRelevance,setNeedCriticality]);
+
+  // ── Use-case flow state ──────────────────────────────────────────────────
+  const [ucOpen,setUcOpen]=useState<string|null>(null);
+  const [ucDraft,setUcDraft]=useState<number[]>([]);
+  // Tiene traccia di quale valore di highCount l'utente ha già dismesso.
+  // null = mai dismesso → popup aperto se highCount≠5.
+  // Se highCount cambia (o si arriva sulla schermata con un count diverso) si riapre.
+  const [not5WarnDismissedAt,setNot5WarnDismissedAt]=useState<number|null>(null);
+  const [synthWarnOpen,setSynthWarnOpen]=useState(false);
+
+  // Tutti i need inclusi
+  const allNeeds = dataNeeds.filter(n => isNeedIncluded(n.id)).map((n) => {
+    const prioIdx = priorities.indexOf(n.priority);
+    const rel = Math.min(needRelevance[n.id]??5,10);
+    const crit = needCriticality[n.id]??5;
+    const relNorm = rel;
+    const tierColor = relNorm>7&&crit>7?"#ff4d4d":relNorm>4||crit>4?"#7dd3fc":"#9ca3af";
+    return {...n,rel,relNorm,crit,prioIdx,color:tierColor};
+  });
+
+  // Tutti i candidati nel quadrante R>5 C>5 con scenari (senza cap)
+  const allHighNeeds = allNeeds.filter(n => n.relNorm > 5 && n.crit > 5 && (USE_CASE_SCENARIOS[n.id]?.length ?? 0) > 0);
+  const highCount = allHighNeeds.length; // numero effettivo nel quadrante
+
+  // Need candidati (R>5 e C>5 con scenari), ordinati per C+R desc, a parità tiebreak hash stabile, cap 5
+  const ucNeeds = React.useMemo(()=>{
+    const candidates = allNeeds.filter(n => n.relNorm > 5 && n.crit > 5 && (USE_CASE_SCENARIOS[n.id]?.length ?? 0) > 0);
+    const h=(s:string)=>s.split("").reduce((a,c)=>((a<<5)-a+c.charCodeAt(0))|0,0);
+    candidates.sort((a,b)=>{
+      const diff=(b.relNorm+b.crit)-(a.relNorm+a.crit);
+      return diff!==0 ? diff : h(a.id)-h(b.id);
+    });
+    return candidates.slice(0,5);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[dataNeeds,needRelevance,needCriticality]);
+
+  // Il popup compare se highCount≠5 E l'utente non ha ancora dismesso *questo* valore.
+  // Si riapre automaticamente appena il count cambia (anche solo di 1).
+  const showNot5Warn = highCount !== 5 && not5WarnDismissedAt !== highCount;
+
+  // Prossimo need (tra i top-5) senza selezione → target freccia
+  const nextUcNeed = ucNeeds.find(n => !(ucSelections[n.id]?.length));
+
+  // Tutti i top-5 compilati → abilita pulsante avanti
+  const allUcDone = ucNeeds.length === 0 || ucNeeds.every(n => (ucSelections[n.id]?.length ?? 0) > 0);
+
+  // Apri popup per un need
+  const openUcPopup = useCallback((id:string) => {
+    setUcDraft(ucSelections[id] ?? []);
+    setUcOpen(id);
+  },[ucSelections]);
+
+  // Chiudi e salva — se draft vuoto rimuove la selezione (box torna blu tratteggiato)
+  const closeUcPopup = useCallback(() => {
+    if (ucOpen) {
+      if (ucDraft.length > 0) {
+        setUcSelections(prev => ({...prev, [ucOpen]: ucDraft}));
+      } else {
+        setUcSelections(prev => {const next={...prev};delete next[ucOpen];return next;});
+      }
+    }
+    setUcOpen(null);
+  },[ucOpen,ucDraft,setUcSelections]);
+
+  const MATRIX_W = 2856;
+  const MATRIX_H = 1475;
+  const PAD_L = 38;
+  const PAD_B = 58;
+  const PAD_T = 60;
+  const VW = MATRIX_W + PAD_L;
+  const VH = MATRIX_H + PAD_B + PAD_T;
+
+  const toX = (v:number) => PAD_L+(v-1)/(10-1)*MATRIX_W;
+  const toY = (v:number) => PAD_T+(10-v)/(10-1)*MATRIX_H;
+  const gridVals = [1,2,3,4,5,6,7,8,9,10];
+  const zoomF = focusMinR;
+  const vbX = zoomF>1?toX(zoomF)-PAD_L/2:0;
+  const vbY = zoomF>1?toY(10):0;
+  const vbW = zoomF>1?(PAD_L+MATRIX_W)-vbX:VW;
+  const vbH = zoomF>1?(toY(zoomF)+PAD_B)-vbY:VH;
+
+  // Need attivo (quello su cui punta la freccia = prossimo dei top-5 non compilato)
+  const arrowTargetId = nextUcNeed?.id ?? null;
+
+  return <main className="pmScreen" style={{position:"relative"}}>
+    {zoomWarnOpen&&<div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(7,18,15,.82)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setZoomWarnOpen(false)}><div style={{background:"#0d1f19",border:"1px solid rgba(57,239,180,.3)",borderRadius:"14px",padding:"28px 32px",maxWidth:"380px",width:"90vw",textAlign:"center",boxShadow:"0 8px 40px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}><p style={{margin:"0 0 8px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".14em",textTransform:"uppercase",color:"#39efb4"}}>{isIt?"Attenzione":"Warning"}</p><p style={{margin:"0 0 20px",fontSize:"15px",color:"#e8f5ef",lineHeight:1.5}}>{isIt?"Il rapporto di visualizzazione è ottimizzato per questa schermata. Sei sicuro di voler cambiare lo zoom?":"The display ratio is optimised for this screen. Are you sure you want to change the zoom?"}</p><div style={{display:"flex",gap:"10px",justifyContent:"center"}}><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid rgba(57,239,180,.35)",background:"transparent",color:"#39efb4",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Annulla":"Cancel"}</button><button style={{padding:"8px 22px",borderRadius:"8px",border:"1px solid #c84040",background:"rgba(200,64,64,.12)",color:"#ff8080",fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}} onClick={()=>setZoomWarnOpen(false)}>{isIt?"Continua comunque":"Continue anyway"}</button></div></div></div>}
+    {/* ── Popup "non 5 elementi" ─────────────────────────────────────────── */}
+    {showNot5Warn&&<div style={{position:"fixed",inset:0,zIndex:19000,background:"rgba(4,12,10,.90)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#0d1f19",border:"1px solid rgba(253,224,71,.45)",borderRadius:"16px",padding:"36px 40px",maxWidth:"680px",width:"92vw",boxShadow:"0 12px 48px rgba(0,0,0,.7)"}} onClick={e=>e.stopPropagation()}>
+        <p style={{margin:"0 0 6px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".12em",textTransform:"uppercase",color:"#fde047"}}>{isIt?"Attenzione — metodo a 5 priorità":"Warning — 5-priority method"}</p>
+        <p style={{margin:"0 0 18px",fontSize:"26px",fontWeight:700,color:"#e8f5ef",lineHeight:1.35}}>
+          {isIt
+            ? `Nel quadrante R>5 e C>5 sono presenti ${highCount} element${highCount===1?"o":"i"}, non 5.`
+            : `The R>5 and C>5 quadrant contains ${highCount} element${highCount===1?"":"s"}, not 5.`}
+        </p>
+        <p style={{margin:"0 0 24px",fontSize:"20px",color:"#7ecfb8",lineHeight:1.6}}>
+          {isIt
+            ? (highCount>5
+                ? "Il metodo prevede l'analisi di esattamente 5 elementi prioritari. Abbassa il valore R o C di qualche elemento per riportare il totale a 5."
+                : "Il metodo prevede l'analisi di esattamente 5 elementi prioritari. Alza il valore R o C di qualche elemento per raggiungere 5.")
+            : (highCount>5
+                ? "The method requires exactly 5 priority elements. Lower the R or C value of some elements to bring the total back to 5."
+                : "The method requires exactly 5 priority elements. Raise the R or C value of some elements to reach 5.")}
+        </p>
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <button style={{padding:"12px 28px",borderRadius:"8px",border:"1px solid rgba(253,224,71,.5)",background:"rgba(253,224,71,.12)",color:"#fde047",fontSize:"18px",fontWeight:700,cursor:"pointer"}} onClick={()=>setNot5WarnDismissedAt(highCount)}>
+            {isIt?"Ho capito, continuo a modificare →":"Got it, I'll keep editing →"}
+          </button>
+        </div>
+      </div>
+    </div>}
+    {/* ── Modale blocco sintesi: count ≠ 5 ───────────────────────────── */}
+    {synthWarnOpen&&<div style={{position:"fixed",inset:0,zIndex:29000,background:"rgba(4,12,10,.92)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setSynthWarnOpen(false)}>
+      <div style={{background:"#0d1f19",border:"2px solid rgba(253,224,71,.55)",borderRadius:"16px",padding:"36px 40px",maxWidth:"640px",width:"92vw",boxShadow:"0 12px 48px rgba(0,0,0,.7)"}} onClick={e=>e.stopPropagation()}>
+        <p style={{margin:"0 0 6px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".12em",textTransform:"uppercase",color:"#fde047"}}>{isIt?"Azione bloccata":"Action blocked"}</p>
+        <p style={{margin:"0 0 16px",fontSize:"24px",fontWeight:700,color:"#e8f5ef",lineHeight:1.35}}>
+          {isIt
+            ? `Nel quadrante R>5 e C>5 sono presenti ${highCount} element${highCount===1?"o":"i"}, non 5.`
+            : `The R>5 and C>5 quadrant contains ${highCount} element${highCount===1?"":"s"}, not 5.`}
+        </p>
+        <p style={{margin:"0 0 28px",fontSize:"17px",color:"#7ecfb8",lineHeight:1.6}}>
+          {isIt
+            ? "La metodologia prevede esattamente 5 elementi di analisi nel quadrante ad alta priorità. Modifica i valori R e C degli elementi fino a raggiungere esattamente 5."
+            : "The methodology requires exactly 5 analysis elements in the high-priority quadrant. Adjust the R and C values until you reach exactly 5."}
+        </p>
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <button style={{padding:"12px 28px",borderRadius:"8px",border:"1px solid rgba(253,224,71,.5)",background:"rgba(253,224,71,.12)",color:"#fde047",fontSize:"16px",fontWeight:700,cursor:"pointer"}} onClick={()=>setSynthWarnOpen(false)}>
+            {isIt?"Torna alla matrice →":"Back to the matrix →"}
+          </button>
+        </div>
+      </div>
+    </div>}
+    <div style={{position:"fixed",top:0,left:0,right:0,height:"4px",background:"#3b82f4",zIndex:9999,pointerEvents:"none"}}/>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,height:"4px",background:"#39efb4",zIndex:9999,pointerEvents:"none"}}/>
+    <header className="missionNav missionNavTrust">
+      <button className="brand brandButton" onClick={reset}><span className="brandMark">e·</span><span>Envizi<br/>Impact Quest</span></button>
+      <div className="missionProgress"><span className="activeDot"/> PRIORITY MATRIX</div>
+      {renderTrustBar()}
+      <button className="langMini" onClick={()=>setLanguage(language==="it"?"en":"it")}>{language==="it"?"EN":"IT"}</button>
+    </header>
+    <div className="pmBody">
+      <div className="pmLeft">
+        <p className="eyebrow">{isIt?"Matrice di Priorità":"Priority Matrix"}</p>
+        <h1 className="pmTitle">{isIt?"Rilevanza vs Criticità":"Relevance vs Criticality"}</h1>
+        <div className="pmTierLegend">
+          <div className="pmTierLegendItem"><span className="pmTierDot" style={{background:"#ff4d4d"}}/><span style={{color:"#fde047"}}>{isIt?"Alta priorità":"High priority"}</span><small>{isIt?"R>7 e C>7":"R>7 and C>7"}</small></div>
+          <div className="pmTierLegendItem"><span className="pmTierDot" style={{background:"#7dd3fc"}}/><span style={{color:"#fde047"}}>{isIt?"Media priorità":"Medium priority"}</span><small>{isIt?"R>4 o C>4":"R>4 or C>4"}</small></div>
+          <div className="pmTierLegendItem"><span className="pmTierDot" style={{background:"#9ca3af"}}/><span style={{color:"#fde047"}}>{isIt?"Bassa priorità":"Low priority"}</span></div>
+        </div>
+        {ucNeeds.length > 0 && (
+          <div style={{marginTop:"10px",padding:"8px 10px",borderRadius:"8px",background:"rgba(57,239,180,.07)",border:"1px solid rgba(57,239,180,.2)"}}>
+            <p style={{margin:"0 0 4px",fontSize:"11px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".1em",textTransform:"uppercase",color:"#39efb4"}}>{isIt?"Scenari completati":"Scenarios completed"}</p>
+            <p style={{margin:0,fontSize:"17px",fontWeight:700,color:"#39efb4",fontVariantNumeric:"tabular-nums"}}>
+              {ucNeeds.filter(n=>(ucSelections[n.id]?.length??0)>0).length}<span style={{fontWeight:400,opacity:.6}}>/{ucNeeds.length}</span>
+            </p>
+          </div>
+        )}
+        <div className="pmObjList" style={{marginTop:"10px"}}>
+          <p className="pmObjListLabel">{isIt?"Filtra per obiettivo":"Filter by objective"}</p>
+          {priorities.map((p,pi)=><div key={p} className={`pmObjItem${hoveredPriority===p?" pmObjItemActive":""}`} onMouseEnter={()=>setHoveredPriority(p)} onMouseLeave={()=>setHoveredPriority(null)}><span className="pmObjRank">{pi+1}</span><span>{t.priorityNames[p]}</span></div>)}
+        </div>
+        <div className="pmObjList" style={{marginTop:"14px"}}>
+          <p className="pmObjListLabel">{isIt?"Filtra per capacità richiesta":"Filter by required capability"}</p>
+          {missionCatalog.map((m,mi)=>{
+            const active = pmMissionFilter === mi;
+            return <div key={mi} className={`pmObjItem${active?" pmObjItemActive":""}`} onClick={()=>setPmMissionFilter(active?null:mi)} style={{cursor:"pointer"}}>
+              <span className="pmObjRank">{mi}</span>
+              <span>{isIt?m.it:m.en}</span>
+            </div>;
+          })}
+        </div>
+      </div>
+      <div className="pmPlotWrap">
+        <h2 className="pmMatrixTitle">{isIt?"Esigenze di gestione dei dati ESG: Priorità di intervento":"ESG data management needs: Intervention priorities"}</h2>
+        <div className="pmFocusBar">
+          <span className="pmFocusLabel">{isIt?"Focalizza su elementi con":"Focus on needs with"}</span>
+          <span className="pmFocusGroup">
+            <span className="pmFocusKey">R ≥ &amp; C ≥</span>
+            <span className="pmFocusStepper">
+              <button className="pmFocusBtn" onClick={()=>{const v=Math.min(10,focusMinR+1);setFocusMinR(v);setFocusMinC(v);}} disabled={focusMinR>=10}>▲</button>
+              <span className="pmFocusVal">{focusMinR}</span>
+              <button className="pmFocusBtn" onClick={()=>{const v=Math.max(1,focusMinR-1);setFocusMinR(v);setFocusMinC(v);}} disabled={focusMinR<=1}>▼</button>
+            </span>
+          </span>
+          <span className="pmFocusHint">{isIt?"(1 = nessun filtro · 10 = solo il massimo)":"(1 = no filter · 10 = max only)"}</span>
+        </div>
+        {/* SVG wrapped in a relative container for the arrow overlay */}
+        <div className="pmSvgWrap">
+        <svg ref={svgRef} className="pmSvg" viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} preserveAspectRatio="xMidYMid meet" style={{width:"100%",height:"100%",transition:"viewBox .35s",cursor:draggingId?"grabbing":"default",userSelect:"none"}}>
+          {gridVals.map(v=><g key={v}>
+            <line x1={toX(v)} y1={PAD_T} x2={toX(v)} y2={PAD_T+MATRIX_H} stroke="rgba(255,255,255,.55)" strokeWidth="1.5" strokeDasharray="5 5"/>
+            <line x1={PAD_L} y1={toY(v)} x2={PAD_L+MATRIX_W} y2={toY(v)} stroke="rgba(255,255,255,.55)" strokeWidth="1.5" strokeDasharray="5 5"/>
+            <text x={toX(v)} y={PAD_T+MATRIX_H+48} textAnchor="middle" fontSize="36" fill="#7ecfb8" fontFamily="monospace" fontWeight="700">{v}</text>
+            <text x={PAD_L-24} y={toY(v)+15} textAnchor="end" fontSize="36" fill="#7ecfb8" fontFamily="monospace" fontWeight="700">{v}</text>
+          </g>)}
+          {pmMissionFilter!==null&&(()=>{
+            const tx=toX(10); const ty=toY(10);
+            const lbl=isIt?"Esigenza trasversale":"Cross-cutting need";
+            const lbl2=isIt?"a tutte le sfide":"across all challenges";
+            const bw=Math.max(lbl.length,lbl2.length)*5.6+16;
+            const bh=28;
+            return <g>
+              <rect x={tx-bw/2} y={ty-bh/2} width={bw} height={bh} rx="4" fill="rgba(7,17,14,.88)" stroke="#f5c542" strokeWidth="1" strokeOpacity="0.7"/>
+              <text x={tx} y={ty-3} textAnchor="middle" fontSize="7" fill="#f5c542" fontFamily="monospace" fontWeight="700">{lbl}</text>
+              <text x={tx} y={ty+8} textAnchor="middle" fontSize="7" fill="#f5c542" fontFamily="monospace" fontWeight="700">{lbl2}</text>
+            </g>;
+          })()}
+          <text x={PAD_L+MATRIX_W/2} y={PAD_T+MATRIX_H+108} textAnchor="middle" fontSize="36" fill="#c2d8cf" fontFamily="monospace" fontWeight="700" letterSpacing="3">{isIt?"RILEVANZA":"RELEVANCE"}</text>
+          <text x={PAD_L+MATRIX_W} y={PAD_T+MATRIX_H+156} textAnchor="end" fontSize="27" fill="rgba(255,255,255,.85)" fontFamily="monospace" fontWeight="700">{isIt?"R = Rilevanza (1–10)   ·   C = Criticità (1–10)":"R = Relevance (1–10)   ·   C = Criticality (1–10)"}</text>
+          <text x={10} y={PAD_T+MATRIX_H/2} textAnchor="middle" fontSize="36" fill="#c2d8cf" fontFamily="monospace" fontWeight="700" letterSpacing="3" transform={`rotate(-90,10,${PAD_T+MATRIX_H/2})`}>{isIt?"CRITICITÀ":"CRITICALITY"}</text>
+          <rect x={toX(5.5)} y={PAD_T} width={PAD_L+MATRIX_W-toX(5.5)} height={MATRIX_H/2} fill="rgba(57,239,180,.13)" stroke="rgba(57,239,180,.7)" strokeWidth="8" strokeDasharray="32 16"/>
+          <text x={(toX(5.5)+(PAD_L+MATRIX_W))/2} y={PAD_T-12} textAnchor="middle" fontSize="44" fill="#ffffff" fontFamily="monospace" fontWeight="700" letterSpacing="3">{isIt?"QUADRANTE PRIORITÀ":"PRIORITY QUADRANT"}</text>
+          {(()=>{
+            const FONT=29; const LINE_H=36; const MAX_LINES=4;
+            const CHAR_W=FONT*0.52; const PAD_X=12; const PAD_Y=8;
+            const maxChars=Math.floor((MATRIX_W/9-PAD_X*2)/CHAR_W);
+            // ── Ranking: prima R>5 C>5 (per R+C desc), poi gli altri (per R+C desc) ──
+            const h=(s:string)=>s.split("").reduce((a,c)=>((a<<5)-a+c.charCodeAt(0))|0,0);
+            const byScore=(a:{relNorm:number,crit:number,id:string},b:{relNorm:number,crit:number,id:string})=>{
+              const diff=(b.relNorm+b.crit)-(a.relNorm+a.crit);
+              return diff!==0?diff:h(a.id)-h(b.id);
+            };
+            const highNeeds=[...allNeeds].filter(n=>n.relNorm>5&&n.crit>5).sort(byScore);
+            const restNeeds=[...allNeeds].filter(n=>!(n.relNorm>5&&n.crit>5)).sort(byScore);
+            const sorted=[...highNeeds,...restNeeds];
+            const rankMap=new Map(sorted.map((n,i)=>([n.id,i+1])));
+            // Conta quante volte compare ogni score R+C per offset unstack
+            const scoreCount=new Map<number,number>();
+            allNeeds.forEach(n=>{const s=n.relNorm+n.crit;scoreCount.set(s,(scoreCount.get(s)??0)+1);});
+            const scoreIdx=new Map<number,number>();
+            const needMeta=allNeeds.map(n=>{
+              const rank=rankMap.get(n.id)??0;
+              const rankLabel=`#${rank}`;
+              const words=n.label.split(" ");
+              const lines:string[]=[rankLabel]; let cur="";
+              for(const w of words){const test=cur?cur+" "+w:w;if(test.length<=maxChars)cur=test;else{if(cur)lines.push(cur);cur=w;}}
+              if(cur)lines.push(cur);
+              const vis=lines.slice(0,MAX_LINES+1); // +1 per il rank
+              const bw=Math.max(...vis.map(l=>l.length))*CHAR_W+PAD_X*2;
+              const bh=vis.length*LINE_H+PAD_Y*2+8;
+              // unstack: se più need hanno stesso R+C li offsettiamo verticalmente
+              const score=n.relNorm+n.crit;
+              const cnt=scoreCount.get(score)??1;
+              const idx=scoreIdx.get(score)??0;
+              scoreIdx.set(score,idx+1);
+              const unstackOff=cnt>1?(idx-(cnt-1)/2)*(bh+8):0;
+              return {n,rank,vis,bw,bh,ox:toX(n.relNorm),oy:toY(n.crit),lx:toX(n.relNorm),ly:toY(n.crit)+unstackOff};
+            });
+            for(let iter=0;iter<50;iter++){
+              for(let i=0;i<needMeta.length;i++){
+                for(let j=i+1;j<needMeta.length;j++){
+                  const a=needMeta[i],b=needMeta[j];
+                  const overX=Math.max(0,(a.bw+b.bw)/2-Math.abs(a.lx-b.lx));
+                  const overY=Math.max(0,(a.bh+b.bh)/2-Math.abs(a.ly-b.ly));
+                  if(overX>0&&overY>0){const push=Math.min(overX,overY)*0.5;const dx=a.lx-b.lx||0.1,dy=a.ly-b.ly||0.1;const d=Math.sqrt(dx*dx+dy*dy)||1;a.lx+=push*dx/d;a.ly+=push*dy/d;b.lx-=push*dx/d;b.ly-=push*dy/d;}
+                }
+                const m=needMeta[i];
+                m.lx=Math.max(PAD_L+m.bw/2+2,Math.min(PAD_L+MATRIX_W-m.bw/2-2,m.lx));
+                m.ly=Math.max(m.bh/2+2,Math.min(MATRIX_H-m.bh/2-2,m.ly));
+              }
+            }
+            const boxes = needMeta.map(({n,vis,bw,bh,ox,oy,lx,ly})=>{
+              const inFocus=n.relNorm>=focusMinR&&n.crit>=focusMinC;
+              const nMission=needIdToMission[n.id]??-1;
+              const isTransversal=nMission===-1;
+              const missionMatch=pmMissionFilter===null||isTransversal||nMission===pmMissionFilter;
+              const visible=(hoveredPriority?n.priority===hoveredPriority:inFocus)&&missionMatch;
+              const isUcTarget = n.id === arrowTargetId;
+              const isDone = (ucSelections[n.id]?.length??0)>0;
+              const hasUc = (USE_CASE_SCENARIOS[n.id]?.length??0)>0;
+              const isHigh = n.relNorm>5&&n.crit>5&&hasUc;
+              const isInQuadrant = n.relNorm>5&&n.crit>5;
+              const SW=Math.round(FONT*0.35);
+              const boxStrokeW = isUcTarget ? SW*2.5 : (isTransversal&&pmMissionFilter!==null?SW*0.5:SW*0.3);
+              const boxStrokeColor = isInQuadrant ? (isDone ? "#39efb4" : "#3b82f4") : (isDone ? "#39efb4" : "#3b82f4");
+              const isDragging = draggingId===n.id;
+              return <g key={n.id} className="pmDot" opacity={visible?1:0.1}
+                style={{cursor: isDragging?"grabbing":"grab"}}
+                onMouseDown={(e)=>{
+                  e.preventDefault();
+                  dragState.current={id:n.id,moved:false};
+                  setDraggingId(n.id);
+                }}
+                onClick={(e)=>{
+                  e.stopPropagation();
+                  if(dragState.current?.moved) return; // era un drag, non un click
+                  openUcPopup(n.id);
+                }}>
+                <rect x={lx-bw/2} y={ly-bh/2} width={bw} height={bh} rx="3"
+                  fill="#07110e" fillOpacity="0.82"
+                  stroke={isDragging?"#ffffff":boxStrokeColor}
+                  strokeWidth={isDragging?2:boxStrokeW}
+                  strokeOpacity="0.9"
+                  strokeDasharray={(!isDragging&&!isDone)?`${Math.round(FONT*1.4)} ${Math.round(FONT*0.7)}`:undefined}/>
+                <text fontFamily="sans-serif" fontSize={FONT} fill={isDragging?"#ffffff":boxStrokeColor} fontWeight="600">
+                  {vis.map((line,i)=>{
+                    const isRank=i===0;
+                    return <tspan key={i} x={lx} y={ly-bh/2+PAD_Y+(i+0.85)*LINE_H} textAnchor="middle"
+                      fontSize={isRank?FONT*1.1:FONT}
+                      fontWeight={isRank?"800":"600"}
+                      fill={isRank?(isDragging?"#ffffff":"#fde047"):undefined}
+                    >{line}</tspan>;
+                  })}
+                </text>
+                {isTransversal&&pmMissionFilter!==null&&<text x={lx+bw/2-3} y={ly-bh/2+8} fontSize="5.5" fill="#f5c542" fontFamily="monospace" fontWeight="700" textAnchor="end" opacity="0.9">TRASV.</text>}
+                {isDone&&isHigh&&!isDragging&&<text x={lx+bw/2-2} y={ly-bh/2+8} fontSize="8" fill="#39efb4" fontFamily="monospace" fontWeight="900" textAnchor="end" opacity="1">✓</text>}
+                <text x={lx} y={ly+bh/2+FONT*0.6} fontSize={isDragging?FONT:FONT*0.8} fill={isDragging?"#ffffff":boxStrokeColor} fontFamily="monospace" fontWeight={isDragging?900:700} opacity="1" textAnchor="middle">{`R${n.relNorm} · C${n.crit}`}</text>
+              </g>;
+            });
+
+            // Indicatore freccia+manina: FUORI dai box (opacity indipendente), sempre visibile
+            const arrowEl = arrowTargetId ? (()=>{
+              const tm = needMeta.find(m=>m.n.id===arrowTargetId);
+              if(!tm) return null;
+              const {lx,ly,bh} = tm;
+              const stepNum = ucNeeds.findIndex(x=>x.id===arrowTargetId)+1;
+              const total = ucNeeds.length;
+              const ay = ly - bh/2 - 6; // punta sopra il box
+              // manina SVG path (16×20 viewBox) centrata su (lx, ay-20)
+              const hs = 14; // scala manina
+              const hx = lx - hs*0.38; // offset centramento X
+              const hy = ay - hs*1.35; // sopra la freccia
+              // path manina stilizzata (pointing hand, orientata verso il basso)
+              const handPath = `M${hx+7},${hy+18} C${hx+7},${hy+20} ${hx+9},${hy+21} ${hx+9},${hy+19}
+                L${hx+9},${hy+10} C${hx+9},${hy+9} ${hx+10},${hy+8} ${hx+11},${hy+8}
+                C${hx+12},${hy+8} ${hx+13},${hy+9} ${hx+13},${hy+10}
+                L${hx+13},${hy+13} C${hx+13},${hy+12} ${hx+14},${hy+11} ${hx+15},${hy+11}
+                C${hx+16},${hy+11} ${hx+17},${hy+12} ${hx+17},${hy+13}
+                L${hx+17},${hy+14} C${hx+17},${hy+13} ${hx+18},${hy+12} ${hx+19},${hy+12}
+                C${hx+20},${hy+12} ${hx+21},${hy+13} ${hx+21},${hy+14}
+                L${hx+21},${hy+17} C${hx+21},${hy+19} ${hx+20},${hy+21} ${hx+18},${hy+21}
+                L${hx+11},${hy+21} C${hx+9},${hy+21} ${hx+7},${hy+20} ${hx+7},${hy+18} Z
+                M${hx+7},${hy+8} L${hx+7},${hy+3} C${hx+7},${hy+1} ${hx+9},${hy+0} ${hx+11},${hy+0}
+                C${hx+12},${hy+0} ${hx+13},${hy+1} ${hx+13},${hy+2}`;
+              return <g key="arrow-indicator" style={{pointerEvents:"none"}}>
+                <g className="pm-arrow-group">
+                  {/* badge step */}
+                  <rect x={lx-16} y={hy-18} width={32} height={13} rx="3" fill="rgba(253,224,71,.22)" stroke="#fde047" strokeWidth="0.9"/>
+                  <text x={lx} y={hy-9} textAnchor="middle" fontSize="8" fill="#fde047" fontFamily="monospace" fontWeight="800">{stepNum}/{total}</text>
+                  {/* manina path */}
+                  <path d={handPath} fill="#fde047" opacity="0.92" stroke="#c8a800" strokeWidth="0.5"/>
+                  {/* freccia triangolare */}
+                  <polygon points={`${lx},${ay} ${lx-8},${ay-14} ${lx+8},${ay-14}`} fill="#fde047" opacity="0.95"/>
+                </g>
+              </g>;
+            })() : null;
+
+            return [...boxes, arrowEl].filter(Boolean);
+          })()}
+        </svg>
+        </div>
+        {/* ── Legenda bordo box ───────────────────────────────────────────── */}
+        <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:"24px",padding:"4px 4px 2px",flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+            <svg width="36" height="18" style={{flexShrink:0}}>
+              <rect x="1" y="1" width="34" height="16" rx="3" fill="none" stroke="#3b82f4" strokeWidth="2" strokeDasharray="6 4"/>
+            </svg>
+            <span style={{fontSize:"13px",color:"#7ecfb8",fontFamily:"var(--font-geist-mono,monospace)"}}>{isIt?"Scenari non compilati":"Scenarios not filled"}</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+            <svg width="36" height="18" style={{flexShrink:0}}>
+              <rect x="1" y="1" width="34" height="16" rx="3" fill="none" stroke="#39efb4" strokeWidth="2"/>
+            </svg>
+            <span style={{fontSize:"13px",color:"#7ecfb8",fontFamily:"var(--font-geist-mono,monospace)"}}>{isIt?"Scenari compilati":"Scenarios filled"}</span>
+          </div>
+        </div>
+        {/* ── Banner avviso count ─────────────────────────────────────────── */}
+        {highCount!==5&&<div style={{flexShrink:0,display:"flex",alignItems:"center",gap:"14px",padding:"10px 18px",marginBottom:"6px",borderRadius:"10px",background:"rgba(253,224,71,.10)",border:"2px solid rgba(253,224,71,.55)"}}>
+          <span style={{fontSize:"28px",lineHeight:1}}>⚠️</span>
+          <p style={{margin:0,fontSize:"clamp(16px,1.4vw,20px)",fontWeight:700,color:"#fde047",lineHeight:1.35}}>
+            {isIt
+              ? `Quadrante R>5 e C>5: ${highCount} element${highCount===1?"o":"i"} su 5 richiesti. Apri un riquadro e modifica R o C per arrivare esattamente a 5.`
+              : `R>5 and C>5 quadrant: ${highCount} element${highCount===1?"":"s"} out of 5 required. Open a box and adjust R or C to reach exactly 5.`}
+          </p>
+        </div>}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0 4px",width:"100%",gap:"16px",flexShrink:0}}>
+          <div style={{display:"flex",gap:"16px",alignItems:"flex-start",flex:1,minWidth:0}}>
+            <p style={{margin:0,fontSize:"clamp(16px,1.3vw,20px)",lineHeight:1.4,color:"#5a9e88",flex:1,minWidth:0}}>
+              {highCount===5&&ucNeeds.length>0&&!allUcDone
+                ? (isIt
+                    ? "Seleziona gli scenari nei riquadri evidenziati (R>5 e C>5) prima di procedere."
+                    : "Select scenarios in the highlighted boxes (R>5 and C>5) before proceeding.")
+                : highCount===5
+                  ? (isIt
+                      ? "La matrice determina l'ordine delle aree di approfondimento: le esigenze ad alta priorità guidano la sequenza delle sfide che affronterai."
+                      : "The matrix determines the order of focus areas: high-priority needs guide the sequence of challenges you will face.")
+                  : ""}
+            </p>
+            <p style={{margin:0,fontSize:"clamp(16px,1.3vw,20px)",lineHeight:1.4,color:"#fde047",flex:1,minWidth:0,padding:"8px 14px",borderRadius:"8px",background:"rgba(253,224,71,.06)",border:"1px solid rgba(253,224,71,.25)"}}>
+              {isIt
+                ? "Compila 5 elementi nel quadrante priorità per poter proseguire. Puoi cambiare i valori di priorità nei box o trascinando i box con il mouse."
+                : "Fill in 5 elements in the priority quadrant to proceed. You can change priority values inside each box or by dragging boxes with the mouse."}
+            </p>
+          </div>
+          {pmFromBriefing
+            ? <button className="actionButton" style={{flexShrink:0,width:"auto"}} onClick={()=>{setPmFromBriefing(false);setScreen("compare");}}>{isIt?"Continua verso l'AS-IS":"Continue to AS-IS"}<b> →</b></button>
+            : <button
+                className="actionButton"
+                style={{flexShrink:0,width:"auto",opacity:(allUcDone&&highCount===5)?1:0.35,filter:(allUcDone&&highCount===5)?"none":"grayscale(0.6)"}}
+                onClick={()=>{
+                  if(highCount!==5){setSynthWarnOpen(true);return;}
+                  if(!allUcDone){return;}
+                  setScreen("ilTuoReport");
+                }}
+              >{isIt?"Genera la sintesi e costruisci la roadmap":"Generate the summary and build the roadmap"}<b> →</b></button>
+          }
+        </div>
+        {pmSelected&&<div className="pmPopoverOverlay" onClick={()=>setPmSelected(null)}>
+          <div className="pmPopover" onClick={e=>e.stopPropagation()}>
+            <button className="pmPopoverClose" onClick={()=>setPmSelected(null)}>✕</button>
+            <p className="pmPopoverLabel" style={{color:pmSelected.color}}>{pmSelected.label}</p>
+            <div className="pmPopoverScores">
+              <div className="pmPopoverScore"><span className="pmPopoverScoreKey">{isIt?"Rilevanza":"Relevance"}</span><span className="pmPopoverScoreVal" style={{color:pmSelected.color}}>{pmSelected.rel}<span className="pmPopoverScoreMax">/10</span></span></div>
+              <div className="pmPopoverScore"><span className="pmPopoverScoreKey">{isIt?"Criticità":"Criticality"}</span><span className="pmPopoverScoreVal" style={{color:pmSelected.color}}>{pmSelected.crit}<span className="pmPopoverScoreMax">/10</span></span></div>
+            </div>
+          </div>
+        </div>}
+
+        {/* ── Popup use-case ──────────────────────────────────────────────── */}
+        {ucOpen&&(()=>{
+          const need = allNeeds.find(n=>n.id===ucOpen);
+          if(!need) return null;
+          const scenarios = USE_CASE_SCENARIOS[ucOpen] ?? [];
+          const hasScenarios = scenarios.length > 0;
+          const MAX_UC = 2;
+          const canConfirm = !hasScenarios || ucDraft.length > 0;
+          const atMax = ucDraft.length >= MAX_UC;
+          // Stepper helper inline
+          const RVal = needRelevance[need.id] ?? need.relNorm;
+          const CVal = needCriticality[need.id] ?? need.crit;
+          const setR = (delta:number) => {
+            const next = Math.max(1, Math.min(10, RVal + delta));
+            setNeedRelevance(prev => ({...prev, [need.id]: next}));
+          };
+          const setC = (delta:number) => {
+            const next = Math.max(1, Math.min(10, CVal + delta));
+            setNeedCriticality(prev => ({...prev, [need.id]: next}));
+          };
+          return <div style={{position:"fixed",inset:0,zIndex:20000,background:"rgba(4,12,10,.88)",display:"flex",alignItems:"stretch",justifyContent:"center"}} onClick={closeUcPopup}>
+           <div style={{background:"#0d1f19",border:"none",borderRadius:"0",padding:"36px 40px",width:"100vw",maxWidth:"100vw",height:"100vh",maxHeight:"100vh",overflowY:"auto",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+              {/* Header */}
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"12px",marginBottom:"6px"}}>
+                <div>
+                  <p style={{margin:"0 0 3px",fontSize:"22px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".12em",textTransform:"uppercase",color:need.color,opacity:.85}}>
+                    {t.priorityNames?.[need.priority] ?? need.priority}
+                  </p>
+                  <p style={{margin:0,fontSize:"30px",fontWeight:700,color:"#e8f5ef",lineHeight:1.4}}>{need.label}</p>
+                </div>
+                <button style={{background:"transparent",border:"none",color:"#7a9b91",fontSize:"36px",cursor:"pointer",flexShrink:0,padding:"0 2px",lineHeight:1}} onClick={closeUcPopup}>✕</button>
+              </div>
+              {/* Instruction — solo se ci sono scenari */}
+              {hasScenarios&&<p style={{margin:"0 0 20px",fontSize:"22px",color:"#7ecfb8",lineHeight:1.5,padding:"14px 18px",background:"rgba(57,239,180,.06)",borderRadius:"8px",borderLeft:"4px solid rgba(57,239,180,.4)"}}>
+                {isIt
+                  ? "Seleziona tutti gli use case che sono significativi nella tua realtà. Identificati con il ruolo se citato. Devi sceglierne almeno uno per continuare, massimo due. Quando hai finito premi ✕ in alto a destra."
+                  : "Select all use cases that are significant in your context. Identify with the role if mentioned. You must choose at least one to continue, maximum two. When done, press ✕ in the top right."}
+              </p>}
+              {/* Two-column body */}
+              <div style={{display:"flex",gap:"28px",flex:1,minHeight:0}}>
+                {/* Left: use case list (o placeholder se vuoto) */}
+                <div style={{flex:1,display:"flex",flexDirection:"column",gap:"10px",marginBottom:"24px",overflowY:"auto"}}>
+                  {hasScenarios ? scenarios.map((uc,i)=>{
+                    const checked = ucDraft.includes(i);
+                    const disabled = !checked && atMax;
+                    return <label key={i} style={{display:"flex",alignItems:"flex-start",gap:"16px",padding:"14px 18px",borderRadius:"10px",background:checked?"rgba(57,239,180,.1)":disabled?"rgba(255,255,255,.015)":"rgba(255,255,255,.03)",border:`1px solid ${checked?"rgba(57,239,180,.45)":disabled?"rgba(255,255,255,.05)":"rgba(255,255,255,.1)"}`,cursor:disabled?"not-allowed":"pointer",transition:"background .15s,border-color .15s",opacity:disabled?0.4:1}}>
+                      <input type="checkbox" checked={checked} disabled={disabled} onChange={()=>{
+                        if(disabled) return;
+                        setUcDraft(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i]);
+                      }} style={{marginTop:"4px",width:"22px",height:"22px",flexShrink:0,accentColor:"#39efb4",cursor:disabled?"not-allowed":"pointer"}}/>
+                      <span style={{fontSize:"22px",color:checked?"#e8f5ef":disabled?"#4a7a6a":"#9dbfb5",lineHeight:1.55}}>{uc}</span>
+                    </label>;
+                  }) : <p style={{margin:"auto 0",fontSize:"18px",color:"#4a7a6a",fontStyle:"italic"}}>{isIt?"Nessuno scenario disponibile per questo elemento.":"No scenarios available for this element."}</p>}
+                </div>
+                {/* Right: R/C steppers */}
+                <div style={{width:"180px",flexShrink:0,display:"flex",flexDirection:"column",gap:"20px",alignItems:"center",paddingTop:"4px"}}>
+                  <p style={{margin:"0 0 4px",fontSize:"13px",fontFamily:"var(--font-geist-mono,monospace)",letterSpacing:".1em",textTransform:"uppercase",color:"#39efb4",textAlign:"center"}}>{isIt?"Modifica pesi":"Edit weights"}</p>
+                  {/* R stepper */}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"6px",padding:"16px 14px",borderRadius:"12px",background:"rgba(57,239,180,.06)",border:"1px solid rgba(57,239,180,.2)",width:"100%"}}>
+                    <span style={{fontSize:"13px",fontFamily:"monospace",color:"#7ecfb8",letterSpacing:".08em",textTransform:"uppercase"}}>{isIt?"Rilevanza":"Relevance"}</span>
+                    <button
+                      style={{background:"rgba(57,239,180,.12)",border:"1px solid rgba(57,239,180,.35)",borderRadius:"6px",color:"#39efb4",fontSize:"20px",cursor:RVal>=10?"not-allowed":"pointer",width:"48px",height:"36px",lineHeight:1,opacity:RVal>=10?0.35:1}}
+                      onClick={()=>setR(+1)} disabled={RVal>=10}>▲</button>
+                    <span style={{fontSize:"32px",fontWeight:700,color:"#39efb4",fontFamily:"monospace",fontVariantNumeric:"tabular-nums",lineHeight:1.1}}>R{RVal}</span>
+                    <button
+                      style={{background:"rgba(57,239,180,.12)",border:"1px solid rgba(57,239,180,.35)",borderRadius:"6px",color:"#39efb4",fontSize:"20px",cursor:RVal<=1?"not-allowed":"pointer",width:"48px",height:"36px",lineHeight:1,opacity:RVal<=1?0.35:1}}
+                      onClick={()=>setR(-1)} disabled={RVal<=1}>▼</button>
+                  </div>
+                  {/* C stepper */}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"6px",padding:"16px 14px",borderRadius:"12px",background:"rgba(57,239,180,.06)",border:"1px solid rgba(57,239,180,.2)",width:"100%"}}>
+                    <span style={{fontSize:"13px",fontFamily:"monospace",color:"#7ecfb8",letterSpacing:".08em",textTransform:"uppercase"}}>{isIt?"Criticità":"Criticality"}</span>
+                    <button
+                      style={{background:"rgba(57,239,180,.12)",border:"1px solid rgba(57,239,180,.35)",borderRadius:"6px",color:"#39efb4",fontSize:"20px",cursor:CVal>=10?"not-allowed":"pointer",width:"48px",height:"36px",lineHeight:1,opacity:CVal>=10?0.35:1}}
+                      onClick={()=>setC(+1)} disabled={CVal>=10}>▲</button>
+                    <span style={{fontSize:"32px",fontWeight:700,color:"#39efb4",fontFamily:"monospace",fontVariantNumeric:"tabular-nums",lineHeight:1.1}}>C{CVal}</span>
+                    <button
+                      style={{background:"rgba(57,239,180,.12)",border:"1px solid rgba(57,239,180,.35)",borderRadius:"6px",color:"#39efb4",fontSize:"20px",cursor:CVal<=1?"not-allowed":"pointer",width:"48px",height:"36px",lineHeight:1,opacity:CVal<=1?0.35:1}}
+                      onClick={()=>setC(-1)} disabled={CVal<=1}>▼</button>
+                  </div>
+                  <p style={{margin:0,fontSize:"11px",color:"#4a7a6a",textAlign:"center",lineHeight:1.4}}>{isIt?"Modifica i pesi direttamente qui per ribilanciare la matrice.":"Adjust weights here to rebalance the matrix."}</p>
+                </div>
+              </div>
+              {/* Footer */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px",marginTop:"8px"}}>
+                <span style={{fontSize:"22px",color:atMax?"#fde047":canConfirm?"#39efb4":"#5a9e88",fontFamily:"monospace"}}>
+                  {!hasScenarios
+                    ? ""
+                    : ucDraft.length===0
+                      ? (isIt?"Seleziona almeno uno scenario":"Select at least one scenario")
+                      : atMax
+                        ? (isIt?`Massimo ${MAX_UC} scenari selezionati`:`Maximum ${MAX_UC} scenarios selected`)
+                        : (isIt?`${ucDraft.length} scenario/i selezionati`:`${ucDraft.length} scenario(s) selected`)}
+                </span>
+                <button
+                  disabled={!canConfirm}
+                  onClick={closeUcPopup}
+                  style={{padding:"14px 32px",borderRadius:"8px",border:"1px solid rgba(57,239,180,.5)",background:"rgba(57,239,180,.15)",color:"#39efb4",fontSize:"26px",fontWeight:700,cursor:"pointer",transition:"all .15s",opacity:canConfirm?1:0.35}}>
+                  {!hasScenarios ? (isIt?"Chiudi":"Close") : (isIt?"Conferma →":"Confirm →")}
+                </button>
+              </div>
+            </div>
+          </div>;
+        })()}
+      </div>
+    </div>
+  </main>;
+}
