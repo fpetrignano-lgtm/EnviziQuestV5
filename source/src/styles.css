@@ -710,7 +710,19 @@ body{font-size:18px}.eyebrow{font-size:22px}.brand{font-size:14px}.step,.mission
 @media(max-width:650px){.compareScreen{height:auto;display:block;padding-top:68px}.compareScreen .missionNav{position:fixed;top:0;left:0;right:0}}
 
 /* ── Compare — sezione copertura tecnologica ───────────────────────────────── */
-.compareTechSection{margin-top:28px;padding:16px 20px;background:rgba(57,239,180,.04);border:1px solid rgba(57,239,180,.15);border-radius:10px}
+/* ── Compare — tabella 6 dimensioni ─────────────────────────────────────────── */
+.compareDimSection{margin-top:28px;padding:16px 20px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px}
+.compareDimLabel{display:block;font-size:11px;letter-spacing:.14em;color:rgba(181,201,193,.5);font-family:var(--font-geist-mono,monospace);margin-bottom:12px}
+.compareDimTable{width:100%;border-collapse:collapse;font-size:13px}
+.compareDimThDim{text-align:left;padding:6px 10px 8px 0;color:rgba(181,201,193,.5);font-weight:600;letter-spacing:.06em;font-size:11px;white-space:nowrap;width:28%}
+.compareDimThAlt{text-align:center;padding:6px 8px 8px;font-weight:700;font-size:12px;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.08)}
+.compareDimRow:not(:last-child) td{border-bottom:1px solid rgba(255,255,255,.05)}
+.compareDimCell{padding:7px 8px;vertical-align:middle}
+.compareDimCellLabel{color:#b5c9c1;font-size:13px;padding-left:0;white-space:nowrap}
+.compareDimCellDots{text-align:center}
+.compareDimScore{margin-left:6px;font-size:11px;font-family:var(--font-geist-mono,monospace);opacity:.75;vertical-align:middle}
+/* ── Compare — sezione copertura tecnologica ───────────────────────────────── */
+.compareTechSection{margin-top:16px;padding:16px 20px;background:rgba(57,239,180,.04);border:1px solid rgba(57,239,180,.15);border-radius:10px}
 .compareTechLabel{display:block;font-size:11px;letter-spacing:.14em;color:rgba(57,239,180,.5);font-family:var(--font-geist-mono,monospace);margin-bottom:12px}
 .compareTechRow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .compareTechItem{display:flex;flex-direction:column;gap:4px}

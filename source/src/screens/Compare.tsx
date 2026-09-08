@@ -31,16 +31,53 @@ const MISSION_IMGS = {
 // Copertura tecnologica separata — mostrata dopo le alternative decisionali
 const TECH_COVERAGE = {
   it: [
-    { key: "critical" as Outcome, tag: "Servizio Gestito",      detail: "Sperimenta con un nostro partner la gestione dei dati ESG." },
-    { key: "warning"  as Outcome, tag: "Modulo Base",           detail: "Semplicità e velocità pronti per evolvere con i tuoi bisogni." },
-    { key: "positive" as Outcome, tag: "Modulo Avanzato",       detail: "Automazione e affidabilità: Data Foundation con Connettori integrati." },
+    { key: "critical" as Outcome, tag: "Servizio Gestito",  detail: "Sperimenta con un nostro partner la gestione dei dati ESG." },
+    { key: "warning"  as Outcome, tag: "Modulo Base",       detail: "Semplicità e velocità pronti per evolvere con i tuoi bisogni." },
+    { key: "positive" as Outcome, tag: "Modulo Avanzato",   detail: "Automazione e affidabilità: Data Foundation con Connettori integrati." },
   ],
   en: [
-    { key: "critical" as Outcome, tag: "Managed Service",       detail: "Experience ESG data management with one of our partners." },
-    { key: "warning"  as Outcome, tag: "Base Module",           detail: "Simplicity and speed, ready to evolve with your needs." },
-    { key: "positive" as Outcome, tag: "Advanced Module",       detail: "Automation and reliability: Data Foundation with integrated Connectors." },
+    { key: "critical" as Outcome, tag: "Managed Service",   detail: "Experience ESG data management with one of our partners." },
+    { key: "warning"  as Outcome, tag: "Base Module",       detail: "Simplicity and speed, ready to evolve with your needs." },
+    { key: "positive" as Outcome, tag: "Advanced Module",   detail: "Automation and reliability: Data Foundation with integrated Connectors." },
   ],
 };
+
+// Punteggi 1-5 per le 6 dimensioni: [critical, warning, positive]
+// Dimensioni: copertura funzionale, facilità implementazione, qualità/tracciabilità, scalabilità, integrazione, TCO
+const DIM_SCORES: Record<string, [number,number,number][]> = {
+  // missione 0 — Data Foundation
+  "0": [[1,3,5],[5,3,2],[1,3,5],[1,3,5],[1,3,5],[5,3,2]],
+  // missione 1 — Energy
+  "1": [[1,3,5],[4,3,2],[1,3,5],[1,3,5],[1,3,5],[5,3,2]],
+  // missione 2 — Supply Chain
+  "2": [[1,3,5],[4,3,2],[1,3,5],[1,3,5],[1,3,5],[5,3,2]],
+  // missione 3 — Reporting
+  "3": [[1,3,5],[4,3,2],[1,3,5],[1,3,5],[2,3,5],[5,3,2]],
+  // missione 4 — Planning
+  "4": [[1,3,5],[4,3,2],[1,3,5],[2,3,5],[1,3,5],[5,3,2]],
+  // missione 5 — Framework
+  "5": [[1,3,5],[4,3,2],[1,3,5],[1,3,5],[2,3,5],[5,3,2]],
+};
+
+const DIMS = {
+  it: ["Copertura funzionale","Facilità di implementazione","Qualità e tracciabilità","Scalabilità","Integrazione","Costo totale (TCO)"],
+  en: ["Functional coverage","Ease of implementation","Quality & traceability","Scalability","Integration","Total cost (TCO)"],
+};
+
+// Dot visual: filled dots on a scale 1-5
+function ScaleDots({value, color}:{value:number; color:string}){
+  return (
+    <span style={{display:"inline-flex",gap:"3px",alignItems:"center"}}>
+      {[1,2,3,4,5].map(i=>(
+        <span key={i} style={{
+          width:"10px",height:"10px",borderRadius:"50%",display:"inline-block",
+          background: i<=value ? color : "rgba(255,255,255,.12)",
+          border: `1px solid ${i<=value ? color : "rgba(255,255,255,.15)"}`,
+        }}/>
+      ))}
+    </span>
+  );
+}
 
 export function Compare({
   language,setLanguage,reset,
@@ -54,6 +91,10 @@ export function Compare({
     {key:"positive" as Outcome,title:active.optionA,tag:(active as any).optionATag as string|undefined,detail:active.optionADetail,img:MISSION_IMGS.positive[selectedMission]},
   ];
   const techCoverage = isIt ? TECH_COVERAGE.it : TECH_COVERAGE.en;
+  const dimLabels = isIt ? DIMS.it : DIMS.en;
+  const scores = DIM_SCORES[String(selectedMission)] ?? DIM_SCORES["0"];
+  // col order: [critical=0, warning=1, positive=2]
+  const colColors: Record<Outcome,string> = {critical:"#ff6b6b", warning:"#f5c542", positive:"#39efb4"};
   const currentRatings=asIsRatings[selectedMission]||(active.asIsItems.map(()=>"alto" as "alto"|"medio"|"basso"));
   const ratingVal={"alto":25,"medio":12,"basso":0};
   const totalCrit=currentRatings.reduce((s,r)=>s+ratingVal[r],0);
@@ -64,8 +105,7 @@ export function Compare({
     :{alta:"HIGH CRITICALITY",media:"MEDIUM CRITICALITY",bassa:"LOW CRITICALITY"};
   const critOnCard={"alta":"positive","media":"warning","bassa":"critical"} as Record<string,string>;
 
-  const tagColor = (key: Outcome) =>
-    key==="positive"?"#39efb4":key==="warning"?"#f5c542":"#ff6b6b";
+  const tagColor = (key: Outcome) => colColors[key];
 
   return(
     <main className="compareScreen">
@@ -99,6 +139,41 @@ export function Compare({
             </div>
           ))}
         </div>
+
+        {/* Tabella valutazione 6 dimensioni */}
+        <div className="compareDimSection">
+          <small className="compareDimLabel">{isIt?"VALUTAZIONE · 6 DIMENSIONI":"EVALUATION · 6 DIMENSIONS"}</small>
+          <table className="compareDimTable">
+            <thead>
+              <tr>
+                <th className="compareDimThDim">{isIt?"Dimensione":"Dimension"}</th>
+                {options.map(opt=>(
+                  <th key={opt.key} className="compareDimThAlt" style={{color:colColors[opt.key]}}>
+                    {opt.title}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dimLabels.map((dim,di)=>(
+                <tr key={dim} className="compareDimRow">
+                  <td className="compareDimCell compareDimCellLabel">{dim}</td>
+                  {options.map((opt,oi)=>{
+                    const colIdx = opt.key==="critical"?0:opt.key==="warning"?1:2;
+                    const val = scores[di]?.[colIdx] ?? 1;
+                    return(
+                      <td key={opt.key} className="compareDimCell compareDimCellDots">
+                        <ScaleDots value={val} color={colColors[opt.key]}/>
+                        <span className="compareDimScore" style={{color:colColors[opt.key]}}>{val}/5</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         {/* Sezione copertura tecnologica — visibile solo per Data Foundation */}
         {m0&&(
           <div className="compareTechSection">
