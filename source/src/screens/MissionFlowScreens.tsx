@@ -103,7 +103,7 @@ export function MissionFlowScreen({
           {effects.length>0&&<div className="crossEffectBanners">{effects.map((e:any)=>{const o=missionOutcomes[e.from] as Outcome;const msg=e[o as keyof typeof e] as string;return<div key={e.from} className={`crossEffectBanner ${o}`}><span className="crossEffectIcon">{o==="positive"?"✓":"!"}</span><p><strong>{t.crossEffectLabel} · {language==="it"?missionCatalog[e.from].it:missionCatalog[e.from].en}:</strong> {msg}</p></div>})}</div>}
           <p className="storyText">{(active.briefing as string).replace("COMPANY_NAME",displayCompanyName).replace("PLANTS_COUNT",String(companyDims[1]))}</p>
           <div className="objectiveBox"><small>{t.objective}</small><p>{active.objectiveText}</p></div>
-          <button className="actionButton" onClick={()=>{if(selectedMission===0){setPmMissionFilter(0);setPmFromBriefing(true);setScreen("compare");}else{setScreen("missionIntro");}}}>{t.analyse}<b>→</b></button>
+          <button className="actionButton" onClick={()=>{if(selectedMission===0){setPmMissionFilter(0);setPmFromBriefing(true);setScreen("compare");}else{setScreen("asis");}}}>{t.analyse}<b>→</b></button>
         </>;
       })()}
 
