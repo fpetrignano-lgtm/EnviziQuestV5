@@ -28,6 +28,20 @@ const MISSION_IMGS = {
   critical:["./envizi-spreadsheets-email.png","./energy-asis-fragmented.png","./supply-chain-asis.png","./reporting-asis.png","./planning-asis.png","./framework-asis.png"],
 };
 
+// Copertura tecnologica separata — mostrata dopo le alternative decisionali
+const TECH_COVERAGE = {
+  it: [
+    { key: "critical" as Outcome, tag: "Servizio Gestito",      detail: "Sperimenta con un nostro partner la gestione dei dati ESG." },
+    { key: "warning"  as Outcome, tag: "Modulo Base",           detail: "Semplicità e velocità pronti per evolvere con i tuoi bisogni." },
+    { key: "positive" as Outcome, tag: "Modulo Avanzato",       detail: "Automazione e affidabilità: Data Foundation con Connettori integrati." },
+  ],
+  en: [
+    { key: "critical" as Outcome, tag: "Managed Service",       detail: "Experience ESG data management with one of our partners." },
+    { key: "warning"  as Outcome, tag: "Base Module",           detail: "Simplicity and speed, ready to evolve with your needs." },
+    { key: "positive" as Outcome, tag: "Advanced Module",       detail: "Automation and reliability: Data Foundation with integrated Connectors." },
+  ],
+};
+
 export function Compare({
   language,setLanguage,reset,
   selectedMission,active,asIsRatings,setScreenHistory,setScreenState,handleDecision,t,
@@ -35,16 +49,11 @@ export function Compare({
   const m0=selectedMission===0;
   const isIt=language==="it";
   const options=[
-    {key:"critical" as Outcome,title:active.optionC,detail:active.optionCDetail,img:MISSION_IMGS.critical[selectedMission],
-      solutionTag:m0?(isIt?"IBM Envizi Servizio Gestito":"IBM Envizi Managed Service"):undefined,
-      solutionDetail:m0?(isIt?"Sperimenta con un nostro partner la gestione dei dati ESG.":"Experience ESG data management with one of our partners."):undefined},
-    {key:"warning" as Outcome,title:active.optionB,detail:active.optionBDetail,img:MISSION_IMGS.warning[selectedMission],
-      solutionTag:m0?(isIt?"IBM Envizi Standard":"IBM Envizi Standard"):undefined,
-      solutionDetail:m0?(isIt?"Modulo Data Foundation. Semplicità e velocità pronti per evolvere con i tuoi bisogni.":"Data Foundation Module. Simplicity and speed, ready to evolve with your needs."):undefined},
-    {key:"positive" as Outcome,title:active.optionA,tag:(active as any).optionATag as string|undefined,detail:active.optionADetail,img:MISSION_IMGS.positive[selectedMission],
-      solutionTag:m0?(isIt?"IBM Envizi Premium":"IBM Envizi Premium"):undefined,
-      solutionDetail:m0?(isIt?"Modulo Data Foundation e Connettori. Automazione e Affidabilità a portata di mano.":"Data Foundation Module and Connectors. Automation and Reliability at your fingertips."):undefined},
+    {key:"critical" as Outcome,title:active.optionC,detail:active.optionCDetail,img:MISSION_IMGS.critical[selectedMission]},
+    {key:"warning"  as Outcome,title:active.optionB,detail:active.optionBDetail,img:MISSION_IMGS.warning[selectedMission]},
+    {key:"positive" as Outcome,title:active.optionA,tag:(active as any).optionATag as string|undefined,detail:active.optionADetail,img:MISSION_IMGS.positive[selectedMission]},
   ];
+  const techCoverage = isIt ? TECH_COVERAGE.it : TECH_COVERAGE.en;
   const currentRatings=asIsRatings[selectedMission]||(active.asIsItems.map(()=>"alto" as "alto"|"medio"|"basso"));
   const ratingVal={"alto":25,"medio":12,"basso":0};
   const totalCrit=currentRatings.reduce((s,r)=>s+ratingVal[r],0);
@@ -54,6 +63,9 @@ export function Compare({
     ?{alta:"CRITICITÀ ALTA",media:"CRITICITÀ MEDIA",bassa:"CRITICITÀ BASSA"}
     :{alta:"HIGH CRITICALITY",media:"MEDIUM CRITICALITY",bassa:"LOW CRITICALITY"};
   const critOnCard={"alta":"positive","media":"warning","bassa":"critical"} as Record<string,string>;
+
+  const tagColor = (key: Outcome) =>
+    key==="positive"?"#39efb4":key==="warning"?"#f5c542":"#ff6b6b";
 
   return(
     <main className="compareScreen">
@@ -67,6 +79,7 @@ export function Compare({
       <section className="compareBody">
         <h1>{isIt?"Scegli la strada":"Choose your path"}</h1>
         <p className="compareHint">{isIt?"Seleziona un'immagine per fare la tua scelta e proseguire.":"Select an image to make your choice and continue."}</p>
+        {/* Griglia decisionale — nessun riferimento a pacchetti */}
         <div className="compareGrid">
           {options.map(opt=>(
             <div key={opt.key} className="compareCardWrap">
@@ -86,6 +99,20 @@ export function Compare({
             </div>
           ))}
         </div>
+        {/* Sezione copertura tecnologica — visibile solo per Data Foundation */}
+        {m0&&(
+          <div className="compareTechSection">
+            <small className="compareTechLabel">{isIt?"COPERTURA TECNOLOGICA · IBM ENVIZI":"TECHNOLOGY COVERAGE · IBM ENVIZI"}</small>
+            <div className="compareTechRow">
+              {techCoverage.map(tc=>(
+                <div key={tc.key} className="compareTechItem">
+                  <span className="compareTechTag" style={{color:tagColor(tc.key),borderColor:tagColor(tc.key)}}>{tc.tag}</span>
+                  <p className="compareTechDetail">{tc.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
       <button className="secondaryAction" style={{position:"fixed",bottom:"24px",left:"24px",zIndex:9998}} onClick={()=>{setScreenHistory((h:any[])=>h.filter((s:any)=>s!=="compare"));setScreenState("asis");}}>← {isIt?"Indietro":"Back"}</button>
     </main>

@@ -709,6 +709,16 @@ body{font-size:18px}.eyebrow{font-size:22px}.brand{font-size:14px}.step,.mission
 @media(max-width:900px){.compareGrid{grid-template-columns:1fr}.compareBody{padding:20px 20px 30px;overflow-y:auto;height:auto}}
 @media(max-width:650px){.compareScreen{height:auto;display:block;padding-top:68px}.compareScreen .missionNav{position:fixed;top:0;left:0;right:0}}
 
+/* ── Compare — sezione copertura tecnologica ───────────────────────────────── */
+.compareTechSection{margin-top:28px;padding:16px 20px;background:rgba(57,239,180,.04);border:1px solid rgba(57,239,180,.15);border-radius:10px}
+.compareTechLabel{display:block;font-size:11px;letter-spacing:.14em;color:rgba(57,239,180,.5);font-family:var(--font-geist-mono,monospace);margin-bottom:12px}
+.compareTechRow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.compareTechItem{display:flex;flex-direction:column;gap:4px}
+.compareTechTag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;border:1px solid;border-radius:4px;padding:2px 8px;width:fit-content;font-family:var(--font-geist-mono,monospace)}
+.compareTechDetail{font-size:13px;color:rgba(181,201,193,.7);line-height:1.45;margin:0}
+@media(max-width:900px){.compareTechRow{grid-template-columns:1fr}}
+
+
 /* TO BE projection screen */
 .tobeScreen{height:100vh;overflow:hidden;display:grid;grid-template-rows:76px 1fr;background:radial-gradient(circle at 20% 70%,#0e2f24,transparent 30%),#07110e}
 .tobeBody{padding:3vw 5vw 5vw;display:flex;flex-direction:column;gap:28px;max-width:1200px;width:100%;overflow-y:auto;height:100%}
