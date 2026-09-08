@@ -135,7 +135,7 @@ export function MissionFlowScreen({
                 <div className="asisInsightHeader">
                   <small className="asisInsightKicker">{language==="it"?"DIAGNOSI 4×4":"4×4 DIAGNOSIS"}</small>
                   <h3 className="asisInsightTitle">{matrixEntry.diagnosi}</h3>
-                  <span className="asisInsightFitBadge" style={{borderColor:fitColor,color:fitColor}}>{language==="it"?"FIT ENVIZI":"ENVIZI FIT"} · {matrixEntry.fitEnvizi.toUpperCase()}</span>
+                  <span className="asisInsightFitBadge" style={{borderColor:fitColor,color:fitColor}}>{language==="it"?"ADEGUATEZZA DELLA SOLUZIONE":"SOLUTION FIT"} · {matrixEntry.fitEnvizi.toUpperCase()}</span>
                 </div>
                 <p className="asisInsightCopy">{matrixEntry.copyApp}</p>
                 <div className="asisInsightRec">
