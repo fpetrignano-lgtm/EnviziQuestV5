@@ -1021,7 +1021,7 @@ export default function Home(){
 
 
 
-  if(screen==="summary"&&profile)return <SummaryScreen language={language} setLanguage={setLanguage} setScreen={setScreen} reset={reset} goBack={goBack} renderTrustBar={renderTrustBar} priorities={priorities} priorityIncluded={priorityIncluded} missionOrder={missionOrder} missionOutcomes={missionOutcomes} needsByMissionHub={needsByMissionHub} calculatedTrustScore={calculatedTrustScore} decisionLabel={decisionLabel} outcomeLabel={outcomeLabel} t={t}/>;
+  if(screen==="summary"&&profile)return <SummaryScreen language={language} setLanguage={setLanguage} setScreen={setScreen} reset={reset} goBack={goBack} renderTrustBar={renderTrustBar} priorities={priorities} priorityIncluded={priorityIncluded} missionOrder={missionOrder} missionOutcomes={missionOutcomes} needsByMissionHub={needsByMissionHub} calculatedTrustScore={calculatedTrustScore} decisionLabel={decisionLabel} outcomeLabel={outcomeLabel} needRelevance={needRelevance} needCriticality={needCriticality} needIdToCapability={needIdToCapability} companyName={companyName} t={t}/>;
 
   if(screen==="nextStep"&&profile)return <NextStepScreen language={language} profile={profile} setLanguage={setLanguage} setScreen={setScreen} reset={reset} goBack={goBack} renderTrustBar={renderTrustBar} priorities={priorities} missionOrder={missionOrder} missionOutcomes={missionOutcomes} missionParameters={missionParameters} trustScore={trustScore} contactEmail={contactEmail} setContactEmail={setContactEmail} approachBiz={approachBiz} approachData={approachData} decisionLabel={decisionLabel} missionItems={missionItems} missionUnits={missionUnits} renderSaveBtn={renderSaveBtn} t={t} name={name}/>;
 

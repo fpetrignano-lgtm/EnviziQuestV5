@@ -1,8 +1,117 @@
+import { useState } from "react";
 import type { Priority, Outcome } from "../types";
 import type { CommonProps, NeedItem } from "./types";
 import { missionCatalog } from "../constants";
 
 type NeedsByMission = [number, (NeedItem & { rank: number })[]][];
+
+// Mappa missionIndex → area tematica
+const MISSION_AREAS = {
+  it: ["Data Foundation","Energia e Scope 1–2","Supply chain e Scope 3","ESG Reporting","Pianificazione Net Zero","Framework e disclosure"],
+  en: ["Data Foundation","Energy & Scope 1–2","Supply chain & Scope 3","ESG Reporting","Net Zero Planning","Frameworks & disclosure"],
+};
+
+// Copertura attesa della soluzione per area (neutra, parametrizzata sull'esito)
+const COVERAGE_LABEL: Record<string, Record<Outcome,{it:string,en:string}>> = {
+  "0": {
+    positive:{it:"Copertura completa: automazione, lineage e integrazioni",en:"Full coverage: automation, lineage and integrations"},
+    warning: {it:"Copertura parziale: raccolta strutturata, qualità manuale",en:"Partial coverage: structured collection, manual quality"},
+    critical:{it:"Copertura minima: processi attuali con supporto esterno",en:"Minimal coverage: current processes with external support"},
+  },
+  "1": {
+    positive:{it:"Copertura completa: analytics energetica e anomaly detection",en:"Full coverage: energy analytics and anomaly detection"},
+    warning: {it:"Copertura parziale: dashboard manuale con alert configurati",en:"Partial coverage: manual dashboard with configured alerts"},
+    critical:{it:"Copertura minima: tracciamento consumi su foglio di calcolo",en:"Minimal coverage: consumption tracked on spreadsheet"},
+  },
+  "2": {
+    positive:{it:"Copertura completa: portale fornitori e dati Scope 3 automatici",en:"Full coverage: supplier portal and automated Scope 3 data"},
+    warning: {it:"Copertura parziale: raccolta fornitori con form strutturati",en:"Partial coverage: supplier collection via structured forms"},
+    critical:{it:"Copertura minima: dati Scope 3 stimati senza piattaforma",en:"Minimal coverage: estimated Scope 3 data without platform"},
+  },
+  "3": {
+    positive:{it:"Copertura completa: GHG reporting, workflow e multi-framework",en:"Full coverage: GHG reporting, workflows and multi-framework"},
+    warning: {it:"Copertura parziale: reporting consolidato con revisione manuale",en:"Partial coverage: consolidated reporting with manual review"},
+    critical:{it:"Copertura minima: reporting basato su export manuali",en:"Minimal coverage: reporting based on manual exports"},
+  },
+  "4": {
+    positive:{it:"Copertura completa: scenari Net Zero e simulazioni d'investimento",en:"Full coverage: Net Zero scenarios and investment simulations"},
+    warning: {it:"Copertura parziale: obiettivi definiti senza simulazione integrata",en:"Partial coverage: defined targets without integrated simulation"},
+    critical:{it:"Copertura minima: pianificazione narrativa senza dati strutturati",en:"Minimal coverage: narrative planning without structured data"},
+  },
+  "5": {
+    positive:{it:"Copertura completa: mappatura CSRD, GRI, SASB, CDP automatizzata",en:"Full coverage: automated CSRD, GRI, SASB, CDP mapping"},
+    warning: {it:"Copertura parziale: mappatura manuale dei requisiti framework",en:"Partial coverage: manual requirements mapping"},
+    critical:{it:"Copertura minima: disclosure basata su template non integrati",en:"Minimal coverage: disclosure based on non-integrated templates"},
+  },
+};
+
+// Gap residui per area e esito
+const GAP_LABEL: Record<string, Record<Outcome,{it:string,en:string}>> = {
+  "0": {
+    positive:{it:"Gap residuo: personalizzazione integrazioni custom e governance dati",en:"Residual gap: custom integration setup and data governance"},
+    warning: {it:"Gap residuo: automazione raccolta e tracciabilità audit trail",en:"Residual gap: collection automation and audit trail traceability"},
+    critical:{it:"Gap residuo: struttura dati, qualità, tracciabilità e scalabilità",en:"Residual gap: data structure, quality, traceability and scalability"},
+  },
+  "1": {
+    positive:{it:"Gap residuo: integrazione con sistemi BMS/SCADA esistenti",en:"Residual gap: integration with existing BMS/SCADA systems"},
+    warning: {it:"Gap residuo: automazione letture e drill-down anomalie",en:"Residual gap: reading automation and anomaly drill-down"},
+    critical:{it:"Gap residuo: granularità consumi, benchmark e proiezioni",en:"Residual gap: consumption granularity, benchmarks and projections"},
+  },
+  "2": {
+    positive:{it:"Gap residuo: onboarding fornitori tier-2 e validazione dati",en:"Residual gap: tier-2 supplier onboarding and data validation"},
+    warning: {it:"Gap residuo: verifica dati fornitori e copertura Scope 3 completa",en:"Residual gap: supplier data verification and full Scope 3 coverage"},
+    critical:{it:"Gap residuo: raccolta strutturata, verifica e tracciabilità fornitori",en:"Residual gap: structured collection, verification and supplier traceability"},
+  },
+  "3": {
+    positive:{it:"Gap residuo: personalizzazione KPI e connettori ESG esterni",en:"Residual gap: KPI customization and external ESG connectors"},
+    warning: {it:"Gap residuo: assurance-readiness e automazione workflow approvativi",en:"Residual gap: assurance-readiness and approval workflow automation"},
+    critical:{it:"Gap residuo: consolidamento dati, workflow e audit trail",en:"Residual gap: data consolidation, workflows and audit trail"},
+  },
+  "4": {
+    positive:{it:"Gap residuo: validazione scenari con dati storici verificati",en:"Residual gap: scenario validation with verified historical data"},
+    warning: {it:"Gap residuo: collegamento obiettivi a dati operativi in real-time",en:"Residual gap: linking targets to real-time operational data"},
+    critical:{it:"Gap residuo: baseline dati affidabile per scenari e simulazioni",en:"Residual gap: reliable data baseline for scenarios and simulations"},
+  },
+  "5": {
+    positive:{it:"Gap residuo: aggiornamento continuo ai nuovi standard normativi",en:"Residual gap: continuous updates to new regulatory standards"},
+    warning: {it:"Gap residuo: automazione mappatura e controllo requisiti ESRS",en:"Residual gap: automation of ESRS requirements mapping and control"},
+    critical:{it:"Gap residuo: framework operativo integrato con i dati ESG",en:"Residual gap: operational framework integrated with ESG data"},
+  },
+};
+
+// Prossimi approfondimenti per area e esito
+const NEXT_STEPS: Record<string, Record<Outcome,{it:string,en:string}>> = {
+  "0": {
+    positive:{it:"Definire architettura integrazioni e piano di rollout multi-sede",en:"Define integration architecture and multi-site rollout plan"},
+    warning: {it:"Valutare automazione raccolta dati e certificazione audit trail",en:"Assess data collection automation and audit trail certification"},
+    critical:{it:"Avviare assessment data foundation e identificare quick win",en:"Start data foundation assessment and identify quick wins"},
+  },
+  "1": {
+    positive:{it:"Connettere sistemi BMS/SCADA e configurare analytics avanzata",en:"Connect BMS/SCADA systems and configure advanced analytics"},
+    warning: {it:"Implementare automazione letture e alerting intelligente",en:"Implement reading automation and intelligent alerting"},
+    critical:{it:"Strutturare raccolta consumi e definire baseline energetica",en:"Structure consumption collection and define energy baseline"},
+  },
+  "2": {
+    positive:{it:"Estendere portale fornitori ai tier-2 e automatizzare validazione",en:"Extend supplier portal to tier-2 and automate validation"},
+    warning: {it:"Strutturare raccolta dati fornitori e avviare verifica campionaria",en:"Structure supplier data collection and start sample verification"},
+    critical:{it:"Definire perimetro Scope 3 prioritario e selezionare metodo di calcolo",en:"Define priority Scope 3 boundary and select calculation method"},
+  },
+  "3": {
+    positive:{it:"Configurare connettori ESG esterni e personalizzare dashboard KPI",en:"Configure external ESG connectors and customize KPI dashboards"},
+    warning: {it:"Automatizzare workflow approvazione e prepararsi all'assurance",en:"Automate approval workflows and prepare for assurance"},
+    critical:{it:"Unificare fonti dati e strutturare processo di consolidamento",en:"Unify data sources and structure consolidation process"},
+  },
+  "4": {
+    positive:{it:"Validare scenari su baseline verificata e simulare piani d'investimento",en:"Validate scenarios on verified baseline and simulate investment plans"},
+    warning: {it:"Collegare target Net Zero ai dati operativi e monitorare avanzamento",en:"Link Net Zero targets to operational data and monitor progress"},
+    critical:{it:"Costruire baseline dati affidabile prima di avviare la pianificazione",en:"Build reliable data baseline before starting planning"},
+  },
+  "5": {
+    positive:{it:"Monitorare aggiornamenti normativi e automatizzare gap analysis",en:"Monitor regulatory updates and automate gap analysis"},
+    warning: {it:"Automatizzare mappatura ESRS e collegare KPI ai requisiti normativi",en:"Automate ESRS mapping and link KPIs to regulatory requirements"},
+    critical:{it:"Scegliere framework prioritario e avviare mappatura manuale strutturata",en:"Select priority framework and start structured manual mapping"},
+  },
+};
 
 interface SummaryProps extends CommonProps {
   priorities: Priority[];
@@ -13,45 +122,215 @@ interface SummaryProps extends CommonProps {
   calculatedTrustScore: number;
   decisionLabel: (missionIndex: number, outcome: Outcome) => string;
   outcomeLabel: (missionIndex: number, outcome: Outcome) => string;
+  needRelevance: Record<string, number>;
+  needCriticality: Record<string, number>;
+  needIdToCapability: Record<string, {it:string,en:string}>;
+  companyName: string;
   t: Record<string, any>;
 }
 
 export function SummaryScreen({
   language, setLanguage, setScreen, reset, renderTrustBar,
   priorities, priorityIncluded, missionOrder, missionOutcomes, needsByMissionHub,
-  calculatedTrustScore, decisionLabel, outcomeLabel, t,
+  calculatedTrustScore, decisionLabel, outcomeLabel,
+  needRelevance, needCriticality, needIdToCapability,
+  companyName, t,
 }: SummaryProps) {
-  return <main className="summaryScreen">
-    <header className="missionNav missionNavTrust"><button className="brand brandButton" onClick={reset}><span className="brandMark">e·</span><span>Envizi<br/>Impact Quest</span></button><div className="missionProgress"><span className="activeDot"/> ESG ROADMAP</div>{renderTrustBar()}<button className="langMini" onClick={()=>setLanguage(language==="it"?"en":"it")}>{language==="it"?"EN":"IT"}</button></header>
-    <section className="summaryIntro">
-      <p className="eyebrow">{t.summaryKicker}</p>
-      <h1>{t.summaryTitle}</h1>
-      <p>{t.summaryIntro}</p>
-      <div className="summaryPriorities">
-        <small>{t.topPriorities}</small>
-        <div>{priorities.slice(0,3).map((p,i)=><span key={p} className={priorityIncluded[p]?"":"summaryPriorityExcluded"}><b>{String(i+1).padStart(2,"0")}</b>{t.priorityNames[p]}{!priorityIncluded[p]&&<small className="summaryPriorityExcludedNote">{language==="it"?" (escluso dall'analisi)":" (excluded from analysis)"}</small>}</span>)}</div>
+  const isIt = language === "it";
+  const displayName = companyName.trim() || (isIt ? "La tua azienda" : "Your company");
+  const areas = isIt ? MISSION_AREAS.it : MISSION_AREAS.en;
+  const outcomeColor: Record<string,string> = {positive:"#39efb4", warning:"#f5c542", critical:"#ff6b6b"};
+
+  // Sezioni per area tematica nell'ordine fisso delle 6 missioni
+  const sections = [0,1,2,3,4,5].map(mi => {
+    const m = missionCatalog[mi];
+    const outcome = (missionOutcomes[mi] as Outcome) ?? null;
+    const needs = needsByMissionHub.find(([x])=>x===mi)?.[1] ?? [];
+    const topNeeds = mi === 0
+      ? [{id:"__foundation__", label: isIt?"Una data foundation solida e tracciabile":"A solid and traceable data foundation", rank:0} as any, ...needs]
+      : needs;
+    // ordinati per rilevanza × criticità
+    const sortedNeeds = [...topNeeds].sort((a,b)=>{
+      const relA = needRelevance[a.id] ?? 5;
+      const relB = needRelevance[b.id] ?? 5;
+      const critA = needCriticality[a.id] ?? 5;
+      const critB = needCriticality[b.id] ?? 5;
+      return (relB * critB) - (relA * critA);
+    });
+    const coverage = outcome ? COVERAGE_LABEL[String(mi)]?.[outcome] : null;
+    const gap = outcome ? GAP_LABEL[String(mi)]?.[outcome] : null;
+    const next = outcome ? NEXT_STEPS[String(mi)]?.[outcome] : null;
+    return { mi, m, outcome, sortedNeeds, coverage, gap, next };
+  });
+
+  return (
+    <main className="summaryScreen summaryDoc">
+      <header className="missionNav missionNavTrust">
+        <button className="brand brandButton" onClick={reset}><span className="brandMark">e·</span><span>Envizi<br/>Impact Quest</span></button>
+        <div className="missionProgress"><span className="activeDot"/> ESG ROADMAP</div>
+        {renderTrustBar()}
+        <button className="langMini" onClick={()=>setLanguage(language==="it"?"en":"it")}>{language==="it"?"EN":"IT"}</button>
+      </header>
+
+      <div className="summaryDocBody">
+        {/* ── Intestazione documento ── */}
+        <section className="summaryDocHeader">
+          <p className="eyebrow">{isIt?"SINTESI CONSULENZIALE · ESG IMPACT QUEST":"ADVISORY SUMMARY · ESG IMPACT QUEST"}</p>
+          <h1 className="summaryDocTitle">{displayName} — {isIt?"Piano ESG operativo":"ESG operational plan"}</h1>
+          <div className="summaryDocMeta">
+            <span>{isIt?"Obiettivi prioritari":"Priority objectives"}: <strong>{priorities.filter(p=>priorityIncluded[p]).slice(0,3).map(p=>t.priorityNames?.[p]??p).join(" · ")}</strong></span>
+            <span>{isIt?"Profondità analisi":"Analysis depth"}: <strong style={{color: calculatedTrustScore>=70?"#39efb4":calculatedTrustScore>=40?"#f5c542":"#ff6b6b"}}>{calculatedTrustScore}/100</strong></span>
+          </div>
+          <p className="trustDisclaimer" style={{marginTop:"6px"}}>{isIt?"ⓘ Il punteggio misura la completezza dell'analisi svolta, non una preferenza tecnologica.":"ⓘ The score reflects analysis completeness, not a technology preference."}</p>
+        </section>
+
+        {/* ── Sezioni per area tematica ── */}
+        {sections.map(({mi, m, outcome, sortedNeeds, coverage, gap, next})=>(
+          <SummaryAreaSection
+            key={mi}
+            position={mi}
+            areaLabel={areas[mi]}
+            missionLabel={isIt ? m.it : m.en}
+            outcome={outcome}
+            sortedNeeds={sortedNeeds}
+            coverage={coverage}
+            gap={gap}
+            next={next}
+            decisionLabel={outcome ? decisionLabel(mi, outcome) : null}
+            outcomeLabel_={outcome ? outcomeLabel(mi, outcome) : null}
+            needRelevance={needRelevance}
+            needCriticality={needCriticality}
+            needIdToCapability={needIdToCapability}
+            isIt={isIt}
+            outcomeColor={outcomeColor}
+          />
+        ))}
+
+        {/* ── Envizi — solo dopo aver presentato tutti i gap ── */}
+        <section className="summaryEnviziSection">
+          <p className="summaryEnviziKicker">{isIt?"COPERTURA TECNOLOGICA · IBM ENVIZI ESG SUITE":"TECHNOLOGY COVERAGE · IBM ENVIZI ESG SUITE"}</p>
+          <p className="summaryEnviziBody">
+            {isIt
+              ? `Sulla base dell'analisi condotta con ${displayName}, IBM Envizi ESG Suite risponde ai requisiti identificati nelle aree Data Foundation, Energia e Scope 1–2, Supply Chain e Scope 3, ESG Reporting, Pianificazione Net Zero e Framework ESG. La scelta del modulo e del livello di implementazione dipende dal gap residuo identificato per ciascuna area e dalla capacità organizzativa di assorbire il cambiamento.`
+              : `Based on the analysis carried out with ${displayName}, IBM Envizi ESG Suite addresses the requirements identified across Data Foundation, Energy & Scope 1–2, Supply Chain & Scope 3, ESG Reporting, Net Zero Planning and ESG Frameworks. The choice of module and implementation level depends on the residual gap identified for each area and the organisation's change absorption capacity.`}
+          </p>
+          <p className="trustDisclaimer">{isIt?"La presentazione di IBM Envizi segue — e non precede — la definizione dei requisiti, della copertura attesa e dei gap residui di ciascuna area.":"IBM Envizi is presented after — not before — the definition of requirements, expected coverage and residual gaps for each area."}</p>
+        </section>
       </div>
-      {calculatedTrustScore>=80&&<div className="trustedBadgeSummary">★ {t.trustedLabel}</div>}
+
+      <footer className="summaryActions">
+        <button className="secondaryAction" onClick={reset}>← {t.backStart}</button>
+        <button className="actionButton" onClick={()=>setScreen("nextStep")}>{t.nextStep}<b>→</b></button>
+      </footer>
+    </main>
+  );
+}
+
+// ── Sotto-componente per ogni area tematica ──────────────────────────────────
+interface AreaSectionProps {
+  position: number;
+  areaLabel: string;
+  missionLabel: string;
+  outcome: Outcome | null;
+  sortedNeeds: any[];
+  coverage: {it:string,en:string} | null;
+  gap: {it:string,en:string} | null;
+  next: {it:string,en:string} | null;
+  decisionLabel: string | null;
+  outcomeLabel_: string | null;
+  needRelevance: Record<string,number>;
+  needCriticality: Record<string,number>;
+  needIdToCapability: Record<string,{it:string,en:string}>;
+  isIt: boolean;
+  outcomeColor: Record<string,string>;
+}
+
+function SummaryAreaSection({
+  position, areaLabel, missionLabel, outcome, sortedNeeds,
+  coverage, gap, next, decisionLabel, outcomeLabel_,
+  needRelevance, needCriticality, needIdToCapability,
+  isIt, outcomeColor,
+}: AreaSectionProps) {
+  const [showAll, setShowAll] = useState(false);
+  const SHOW_N = 5;
+  const hasMore = sortedNeeds.length > SHOW_N;
+  const visibleNeeds = showAll ? sortedNeeds : sortedNeeds.slice(0, SHOW_N);
+  const oColor = outcome ? (outcomeColor[outcome] ?? "#7a9a90") : "#7a9a90";
+
+  return (
+    <section className="summaryAreaSection">
+      <div className="summaryAreaHeader">
+        <span className="summaryAreaNum">{String(position+1).padStart(2,"0")}</span>
+        <div>
+          <small className="summaryAreaTag">{areaLabel}</small>
+          <h2 className="summaryAreaTitle">{missionLabel}</h2>
+        </div>
+        {outcome && (
+          <span className="summaryAreaOutcomeBadge" style={{color:oColor, borderColor:oColor}}>
+            {decisionLabel}
+          </span>
+        )}
+      </div>
+
+      <div className="summaryAreaGrid">
+        {/* Esigenze prioritarie */}
+        <div className="summaryAreaCol">
+          <small className="summaryAreaColLabel">{isIt?"ESIGENZE PRIORITARIE":"PRIORITY NEEDS"}</small>
+          {sortedNeeds.length === 0
+            ? <p className="summaryAreaEmpty">{isIt?"Nessuna esigenza associata":"No associated needs"}</p>
+            : <>
+                {visibleNeeds.map((n,i)=>{
+                  const rel = needRelevance[n.id] ?? 5;
+                  const crit = needCriticality[n.id] ?? 5;
+                  const cap = needIdToCapability[n.id];
+                  const tier = rel>=8&&crit>=8?"#ff4d4d":rel>=5||crit>=5?"#7dd3fc":"#9ca3af";
+                  return (
+                    <div key={n.id} className="summaryNeedRow">
+                      <span className="summaryNeedDot" style={{background:tier}}/>
+                      <div>
+                        <p className="summaryNeedLabel">{n.label}</p>
+                        {cap && <p className="summaryNeedCap" style={{color:tier,opacity:.8}}>{isIt?cap.it:cap.en}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {hasMore && !showAll && (
+                  <button className="summaryShowAllBtn" onClick={()=>setShowAll(true)}>
+                    {isIt?`Mostra tutti (${sortedNeeds.length})`:`Show all (${sortedNeeds.length})`}
+                  </button>
+                )}
+              </>
+          }
+        </div>
+
+        {/* AS-IS → Gap → Copertura → Beneficio */}
+        <div className="summaryAreaCol">
+          {outcome ? (
+            <>
+              <div className="summaryChainRow">
+                <small className="summaryAreaColLabel">{isIt?"COPERTURA ATTESA":"EXPECTED COVERAGE"}</small>
+                <p className="summaryChainText" style={{color:oColor}}>{isIt ? coverage?.it : coverage?.en}</p>
+              </div>
+              <div className="summaryChainRow">
+                <small className="summaryAreaColLabel">{isIt?"GAP RESIDUO":"RESIDUAL GAP"}</small>
+                <p className="summaryChainText">{isIt ? gap?.it : gap?.en}</p>
+              </div>
+              <div className="summaryChainRow">
+                <small className="summaryAreaColLabel">{isIt?"IMPATTO ATTESO":"EXPECTED IMPACT"}</small>
+                <p className="summaryChainText">{outcomeLabel_}</p>
+              </div>
+              <div className="summaryChainRow">
+                <small className="summaryAreaColLabel">{isIt?"PROSSIMO APPROFONDIMENTO":"NEXT STEP"}</small>
+                <p className="summaryChainText" style={{color:"rgba(57,239,180,.8)"}}>{isIt ? next?.it : next?.en}</p>
+              </div>
+            </>
+          ) : (
+            <p className="summaryAreaEmpty">{isIt?"Missione non ancora svolta":"Mission not yet completed"}</p>
+          )}
+        </div>
+      </div>
     </section>
-    <section className="summaryGrid">
-      {missionOrder.map((missionIndex,position)=>{
-        const m=missionCatalog[missionIndex];
-        const outcome=missionOutcomes[missionIndex] as Outcome | undefined;
-        const assignedNeeds=needsByMissionHub.find(([mi])=>mi===missionIndex)?.[1]||[];
-        const displayNeeds=missionIndex===0?[{id:"__foundation__",label:language==="it"?"Una data foundation solida e tracciabile":"A solid and traceable data foundation"},...assignedNeeds]:assignedNeeds;
-        return <article className={`summaryCard ${outcome}`} key={m.value}>
-          <div className="summaryCardTitle"><span>{String(position+1).padStart(2,"0")}</span><h2>{language==="it"?m.it:m.en}</h2></div>
-          <div><small>{t.adoptedDecision}</small><strong>{outcome?decisionLabel(missionIndex,outcome):"—"}</strong></div>
-          <div><small>{t.expectedImpact}</small><p>{outcome?outcomeLabel(missionIndex,outcome):"—"}</p></div>
-          <div className="summaryParams"><small>{t.parameters}</small>{displayNeeds.length>0?displayNeeds.map(n=><span key={n.id}>⬡ {n.label}</span>):<span>—</span>}</div>
-        </article>;
-      })}
-    </section>
-    <footer className="summaryActions">
-      <button className="secondaryAction" onClick={reset}>← {t.backStart}</button>
-      <button className="actionButton" onClick={()=>setScreen("nextStep")}>{t.nextStep}<b>→</b></button>
-    </footer>
-  </main>;
+  );
 }
 
 interface NextStepProps extends CommonProps {
