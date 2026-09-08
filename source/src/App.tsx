@@ -675,7 +675,21 @@ export default function Home(){
   const extractMetricDefault=(metric:string):string=>{const m=metric.replace(/[€,]/g,"").match(/[\d]+(?:[.,]\d+)?/);return m?m[0].replace(",","."):"";};
   useEffect(()=>{if(screen==="asis"&&!missionParameters[selectedMission]?.some(v=>v)){const items=active.asIsItems;const defaults=items.map(item=>extractMetricDefault(item.metric));const next={...missionParameters,[selectedMission]:defaults};setMissionParameters(next);}},[screen,selectedMission]);
   const trustGainByOutcome=(outcome:Outcome,missionIndex?:number)=>{if(missionIndex===0&&outcome==="positive")return 25;return outcome==="positive"?15:outcome==="warning"?7:0;};
-  const calculatedTrustScore=Object.entries(missionOutcomes).reduce((total,[mi,o])=>total+trustGainByOutcome(o as Outcome,Number(mi)),30);
+  // Bonus AS-IS: ogni missione con valutazione completata contribuisce fino a 5 punti
+  // basati sulla profondità dell'analisi (criticità alta = analisi più approfondita)
+  const asIsBonus=(()=>{
+    const ratingVal={"alto":25,"medio":12,"basso":0};
+    let bonus=0;
+    Object.entries(asIsRatings).forEach(([,ratings])=>{
+      if(!ratings||ratings.length===0)return;
+      const total=ratings.reduce((s,r)=>s+ratingVal[r],0);
+      const max=ratings.length*25;
+      // scala lineare: 0pt se tutto basso, 5pt se tutto alto
+      bonus+=Math.round((total/max)*5);
+    });
+    return bonus;
+  })();
+  const calculatedTrustScore=Math.min(100,Object.entries(missionOutcomes).reduce((total,[mi,o])=>total+trustGainByOutcome(o as Outcome,Number(mi)),30)+asIsBonus);
   const trustColor=trustScore>=50?"#39efb4":trustScore>=20?"#ffc07c":"#ff7777";
   const renderTrustBar=()=><div className="trustBar"><span className="trustBarLabel">{t.trustLabel}</span><div className="trustBarTrack"><div className="trustBarFill" style={{width:`${trustScore}%`,background:trustColor}}/></div><span className="trustBarValue" style={{color:trustColor}}>{trustScore}<small>/100</small></span></div>;
   const handleDecision=(outcome:Outcome)=>{const nextOutcomes={...missionOutcomes,[selectedMission]:outcome};saveOutcome(outcome);const nextTrust=Math.min(100,Object.entries(nextOutcomes).reduce((total,[mi,o])=>total+trustGainByOutcome(o as Outcome,Number(mi)),30));setTrustScore(nextTrust);localStorage.setItem("envizi-quest-trust-score",String(nextTrust));if(outcome!=="positive")setNegativeChoice(outcome==="warning"?"form":"postpone");setPendingOutcome(outcome);setScreenHistory(["compare"]);setScreenState("trust")};
@@ -948,7 +962,7 @@ export default function Home(){
                   <div className="trustBar"><span className="trustBarLabel">{t.trustLabel}</span><div className="trustBarTrack"><div className="trustBarFill" style={{width:`${trustScore}%`,background:trustColor}}/></div><span className="trustBarValue" style={{color:trustColor}}>{trustScore}<small>/100</small></span></div>
                   <span className="esgStrTrustDelta">+10</span>
                 </div>
-              </div>
+              <p className="trustDisclaimer" style={{marginTop:"12px"}}>{isIt?"ⓘ Il punteggio misura la completezza e la profondità dell'analisi svolta, non una preferenza per una specifica tecnologia o soluzione.":"ⓘ The score measures the completeness and depth of the analysis performed, not a preference for any specific technology or solution."}</p>
             </>
           ):(
             <>
@@ -962,6 +976,7 @@ export default function Home(){
                   <div className="trustBar"><span className="trustBarLabel">{t.trustLabel}</span><div className="trustBarTrack"><div className="trustBarFill" style={{width:`${trustScore}%`,background:trustColor}}/></div><span className="trustBarValue" style={{color:trustColor}}>{trustScore}<small>/100</small></span></div>
                 </div>
               </div>
+              <p className="trustDisclaimer" style={{marginTop:"12px"}}>{isIt?"ⓘ Il punteggio misura la completezza e la profondità dell'analisi svolta, non una preferenza per una specifica tecnologia o soluzione.":"ⓘ The score measures the completeness and depth of the analysis performed, not a preference for any specific technology or solution."}</p>
             </>
           )}
           <div className="esgStrActions">

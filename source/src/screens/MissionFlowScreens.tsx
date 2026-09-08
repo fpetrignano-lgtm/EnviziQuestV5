@@ -204,6 +204,11 @@ export function MissionFlowScreen({
             })}
           </svg>
         </div>
+        <p className="trustDisclaimer">
+          {language==="it"
+            ? "ⓘ Il punteggio misura la completezza e la profondità dell'analisi svolta, non una preferenza per una specifica tecnologia o soluzione."
+            : "ⓘ The score measures the completeness and depth of the analysis performed, not a preference for any specific technology or solution."}
+        </p>
       </>}
 
       {result&&<>
